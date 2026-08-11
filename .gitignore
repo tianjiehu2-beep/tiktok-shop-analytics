@@ -1,0 +1,10 @@
+﻿__pycache__/
+*.pyc
+.venv/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+reports/*.html
+reports/*.csv
+reports/*.png
+reports/*.jpg

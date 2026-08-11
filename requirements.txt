@@ -1,0 +1,6 @@
+# 核心数据管道仅依赖 Python 3.10+ 标准库，无需安装即可运行 demo。
+# 真实采集 TikTok Shop 时安装：
+playwright>=1.44
+
+# 可选：数据分析/导出
+pandas>=2.0
