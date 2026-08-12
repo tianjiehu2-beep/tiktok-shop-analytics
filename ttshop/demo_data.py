@@ -107,6 +107,7 @@ def generate_products(count: int = 200, category: str | None = None, seed: int =
             video_views=views,
             video_likes=likes,
             listed_at=listed_at,
+            first_seen_at=(now - timedelta(days=listed_days)).isoformat(),
         )
         products.append(product)
     return products
@@ -118,10 +119,19 @@ def generate_history(products: list[Product], days: int = 14, points: int = 6, s
     now = datetime.now(timezone.utc)
     history = []
     for p in products:
+        trend = rng.choice(("up", "flat", "down"))
         for k in range(points):
             t = now - timedelta(days=days * (points - k) / points)
-            ratio = (k + 1) / points
-            sold = max(0, int(p.sold_count * ratio * rng.uniform(0.85, 1.0)))
+            base = (k + 1) / points
+            if trend == "up":
+                ratio = base * rng.uniform(0.85, 1.0)
+            elif trend == "flat":
+                ratio = 0.97 + 0.03 * base + rng.uniform(-0.01, 0.01)
+            else:  # down：从 1.25 倍回落到 1.0 倍
+                ratio = (1.25 - 0.25 * base) * rng.uniform(0.97, 1.03)
+            if k == points - 1:
+                ratio = 1.0
+            sold = max(0, int(p.sold_count * ratio))
             price = p.price * rng.uniform(0.97, 1.03)
             history.append((p.product_id, round(price, 2), sold, t.replace(microsecond=0).isoformat()))
     return history

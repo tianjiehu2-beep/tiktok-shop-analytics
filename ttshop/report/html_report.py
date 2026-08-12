@@ -130,6 +130,17 @@ def _category_stats(products: list[dict]) -> list[dict]:
         })
     return rows
 
+def _lifecycle_badge(lifecycle: str) -> str:
+    if not lifecycle:
+        return "<span style='color:#94a3b8'>-</span>"
+    color = {"成长期": "#16a34a", "导入期": "#2563eb",
+             "成熟期": "#64748b", "衰退期": "#ef4444"}.get(lifecycle, "#64748b")
+    bg = {"成长期": "#dcfce7", "导入期": "#dbeafe",
+          "成熟期": "#f1f5f9", "衰退期": "#fee2e2"}.get(lifecycle, "#f1f5f9")
+    return (f"<span style='display:inline-block;padding:2px 8px;border-radius:999px;"
+            f"background:{bg};color:{color};font-size:12px'>{_esc(lifecycle)}</span>")
+
+
 def _table_rows(analysis: list[dict], symbol: str) -> str:
     rows = []
     for i, a in enumerate(analysis, 1):
@@ -146,6 +157,8 @@ def _table_rows(analysis: list[dict], symbol: str) -> str:
             f"<td class='num'>{_money(a['est_profit'], symbol)}</td>"
             f"<td class='num'>{_pct(a['est_margin'])}</td>"
             f"<td class='num'>{a.get('hot_score') or 0:.0f}</td>"
+            f"<td>{_lifecycle_badge(a.get('lifecycle'))}</td>"
+            f"<td class='num'>{a.get('predicted_7d') or 0:,}</td>"
             f"<td class='num score'>{a['selection_score']}</td></tr>"
         )
     return "\n".join(rows)
@@ -284,6 +297,13 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
             a["is_new"] = t["is_new"]
             a["trend_sold_7d"] = t["sold_7d"]
 
+    forecast_map = {f["product_id"]: f for f in db.latest_forecasts(limit=9999)}
+    for a in analysis:
+        f = forecast_map.get(a["product_id"]) or {}
+        a["lifecycle"] = f.get("lifecycle") or ""
+        a["predicted_7d"] = f.get("predicted_7d") or 0
+        a["reason"] = f.get("reason") or ""
+
     hot_rows = db.latest_trends(limit=10)
     hot_table = "\n".join(
         f"<tr><td>{i}</td>"
@@ -298,6 +318,25 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
 
     table_rows = _table_rows(analysis[:20], symbol)
     trend_html = _trend_block(trends)
+
+    forecast_all = db.latest_forecasts(limit=9999)
+    _by_lc: dict[str, list] = {}
+    for _f in forecast_all:
+        _by_lc.setdefault(_f["lifecycle"] or "未知", []).append(_f)
+    _picks: list[dict] = []
+    for lc in ("成长期", "导入期", "成熟期", "衰退期"):
+        _picks.extend(sorted(_by_lc.get(lc, []), key=lambda x: x["predicted_7d"], reverse=True)[:3])
+    forecast_rows = sorted(_picks, key=lambda x: x["predicted_7d"], reverse=True)[:10]
+    forecast_table = "\n".join(
+        f"<tr><td>{i}</td>"
+        f"<td title='{_esc(f['title'])}'>{_esc(_short(f['title'], 28))}</td>"
+        f"<td><span class='tag'>{_esc(f['category'])}</span></td>"
+        f"<td>{_lifecycle_badge(f['lifecycle'])}</td>"
+        f"<td class='num'>{f['predicted_7d']:,}</td>"
+        f"<td class='num'>{f['confidence']:.0f}</td>"
+        f"<td style='white-space:normal;min-width:280px;color:#475569'>{_esc(f['reason'])}</td></tr>"
+        for i, f in enumerate(forecast_rows, 1)
+    ) if forecast_rows else "<tr><td colspan='7'>暂无预测数据（重复执行采集后出现）</td></tr>"
 
     alert_rows = db.alerts_by_date(limit=30)
     alert_table = "\n".join(
@@ -370,6 +409,14 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
   </table></div>
 </section>
 
+<section class="panel">
+  <h2>选品建议 Top 10（生命周期 + 销量预测 + 推荐理由）</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>商品</th><th>类目</th><th>生命周期</th><th class="num">预测7天增量</th><th class="num">置信度</th><th>推荐理由</th></tr>
+    {forecast_table}
+  </table></div>
+</section>
+
 <section class="cols2">
   <div class="panel"><h2>带货达人榜（按GMV）</h2>
     <div class="scroll"><table>
@@ -388,7 +435,7 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
 <section class="panel">
   <h2>爆品榜 Top 20（按选品分排序）</h2>
   <div class="scroll"><table>
-    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">近7天</th><th class="num">带货达人</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">爆品指数</th><th class="num">选品分</th></tr>
+    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">近7天</th><th class="num">带货达人</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">爆品指数</th><th>生命周期</th><th class="num">预测7天</th><th class="num">选品分</th></tr>
     {table_rows}
   </table></div>
 </section>

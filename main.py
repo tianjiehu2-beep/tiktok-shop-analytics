@@ -236,19 +236,27 @@ def cmd_alerts(args, settings: Settings) -> int:
 
 def cmd_trend(args, settings: Settings) -> int:
     from ttshop.analysis.trend import compute_trends
+    from ttshop.analysis.forecast import compute_forecasts
 
     db = _get_db(args, settings)
     count = compute_trends(db, settings)
+    forecasted = compute_forecasts(db, settings)
     rows = db.latest_trends(limit=args.limit)
+    forecasts = {f["product_id"]: f for f in db.latest_forecasts(limit=9999)}
     hot = db.latest_trends(limit=999, only_hot=True)
-    print(f"趋势/爆品指数计算完成: {count} 条，爆品（指数≥60）{len(hot)} 个")
+    print(f"趋势/爆品指数计算完成: {count} 条，爆品（指数≥60）{len(hot)} 个，销量预测 {forecasted} 条")
     print()
-    print("爆品预测 Top:")
+    print("爆品预测 Top（生命周期 + 推荐理由）:")
     for i, t in enumerate(rows, 1):
         tag = "NEW " if t["is_new"] else "HOT " if t["is_hot"] else "    "
-        print(f"{i:>2}. {tag}{t['title'][:38]:<40} "
-              f"7天 {t['sold_7d']:>6,}  增速 {t['growth_7d']:>5.1f}x  "
-              f"新品分 {t['novelty_score']:>3.0f}  爆品指数 {t['hot_score']:>5.1f}")
+        f = forecasts.get(t["product_id"]) or {}
+        lc = f.get("lifecycle") or "-"
+        pred = f.get("predicted_7d") or 0
+        print(f"{i:>2}. {tag}{t['title'][:36]:<38} "
+              f"7天:{t['sold_7d']:>6,}  增速:{t['growth_7d']:>5.1f}x  "
+              f"爆品指数 {t['hot_score']:>5.1f}  [{lc}] 预测7天 {pred:>6,}")
+        if f.get("reason"):
+            print(f"     -> {f['reason']}")
     return 0
 
 

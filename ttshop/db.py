@@ -123,6 +123,17 @@ CREATE TABLE IF NOT EXISTS alerts (
     created_at  TEXT NOT NULL,
     UNIQUE (product_id, alert_type, alert_date)
 );
+
+CREATE TABLE IF NOT EXISTS product_forecasts (
+    product_id    TEXT PRIMARY KEY,
+    predicted_7d  INTEGER NOT NULL DEFAULT 0,
+    predicted_30d INTEGER NOT NULL DEFAULT 0,
+    daily_slope   REAL NOT NULL DEFAULT 0,
+    confidence    REAL NOT NULL DEFAULT 0,
+    lifecycle     TEXT NOT NULL DEFAULT '',
+    reason        TEXT NOT NULL DEFAULT '',
+    forecast_at   TEXT NOT NULL
+);
 """
 
 
@@ -333,6 +344,38 @@ class Database:
                 )
                 written += 1
         return written
+
+    def save_forecasts(self, rows: list[dict]) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for f in rows:
+                conn.execute(
+                    """INSERT INTO product_forecasts
+                       (product_id, predicted_7d, predicted_30d, daily_slope,
+                        confidence, lifecycle, reason, forecast_at)
+                       VALUES (?,?,?,?,?,?,?,?)
+                       ON CONFLICT(product_id) DO UPDATE SET
+                        predicted_7d=excluded.predicted_7d,
+                        predicted_30d=excluded.predicted_30d,
+                        daily_slope=excluded.daily_slope,
+                        confidence=excluded.confidence,
+                        lifecycle=excluded.lifecycle,
+                        reason=excluded.reason,
+                        forecast_at=excluded.forecast_at""",
+                    (f["product_id"], f["predicted_7d"], f["predicted_30d"],
+                     f["daily_slope"], f["confidence"], f["lifecycle"], f["reason"], now),
+                )
+                written += 1
+        return written
+
+    def latest_forecasts(self, limit: int = 50) -> list[dict]:
+        sql = """SELECT f.*, p.title, p.category, p.price, p.sold_count
+                 FROM product_forecasts f JOIN products p ON p.product_id = f.product_id
+                 ORDER BY f.predicted_7d DESC, f.confidence DESC LIMIT ?"""
+        with self.conn() as conn:
+            rows = conn.execute(sql, (limit,)).fetchall()
+        return [dict(r) for r in rows]
 
     def latest_trends(self, limit: int = 20, only_hot: bool = False) -> list[dict]:
         sql = """SELECT t.*, p.title, p.category, p.price, p.sold_count, p.sale_7d_cnt,
