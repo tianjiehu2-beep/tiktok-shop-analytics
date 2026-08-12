@@ -211,6 +211,24 @@ def cmd_keywords(args, settings: Settings) -> int:
     return 0
 
 
+def cmd_trend(args, settings: Settings) -> int:
+    from ttshop.analysis.trend import compute_trends
+
+    db = _get_db(args, settings)
+    count = compute_trends(db, settings)
+    rows = db.latest_trends(limit=args.limit)
+    hot = db.latest_trends(limit=999, only_hot=True)
+    print(f"趋势/爆品指数计算完成: {count} 条，爆品（指数≥60）{len(hot)} 个")
+    print()
+    print("爆品预测 Top:")
+    for i, t in enumerate(rows, 1):
+        tag = "NEW " if t["is_new"] else "HOT " if t["is_hot"] else "    "
+        print(f"{i:>2}. {tag}{t['title'][:38]:<40} "
+              f"7天 {t['sold_7d']:>6,}  增速 {t['growth_7d']:>5.1f}x  "
+              f"新品分 {t['novelty_score']:>3.0f}  爆品指数 {t['hot_score']:>5.1f}")
+    return 0
+
+
 def cmd_categories(args, settings: Settings) -> int:
     from ttshop.sources import ApiSource
 
@@ -316,6 +334,10 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape.add_argument("--headful", action="store_true", help="显示浏览器窗口（便于调试反爬）")
     p_scrape.add_argument("--proxy", default=None, help="代理地址，如 socks5://127.0.0.1:40000")
     p_scrape.set_defaults(func=cmd_scrape)
+
+    p_trend = sub.add_parser("trend", help="计算趋势与爆品预测（7天/30天增速、新品检测、爆品指数）")
+    p_trend.add_argument("--limit", type=int, default=15)
+    p_trend.set_defaults(func=cmd_trend)
 
     p_categories = sub.add_parser("categories", help="浏览/搜索 TikTok Shop 类目树（EchoTik）并获取类目ID")
     p_categories.add_argument("--search", default=None, help="按名称搜索类目，例如 瑜伽 / home / kitchen")

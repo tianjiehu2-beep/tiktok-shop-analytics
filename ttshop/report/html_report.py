@@ -145,6 +145,7 @@ def _table_rows(analysis: list[dict], symbol: str) -> str:
             f"<td class='num'>{a['review_count']:,}</td>"
             f"<td class='num'>{_money(a['est_profit'], symbol)}</td>"
             f"<td class='num'>{_pct(a['est_margin'])}</td>"
+            f"<td class='num'>{a.get('hot_score') or 0:.0f}</td>"
             f"<td class='num score'>{a['selection_score']}</td></tr>"
         )
     return "\n".join(rows)
@@ -267,6 +268,27 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
         for r in cat_rows
     )
 
+    trend_map = {t["product_id"]: t for t in db.latest_trends(limit=500)}
+    for a in analysis:
+        t = trend_map.get(a["product_id"])
+        if t:
+            a["hot_score"] = t["hot_score"]
+            a["growth_7d"] = t["growth_7d"]
+            a["is_new"] = t["is_new"]
+            a["trend_sold_7d"] = t["sold_7d"]
+
+    hot_rows = db.latest_trends(limit=10)
+    hot_table = "\n".join(
+        f"<tr><td>{i}</td>"
+        f"<td title='{_esc(t['title'])}'>{_esc(_short(t['title']))}</td>"
+        f"<td><span class='tag'>{_esc(t['category'])}</span></td>"
+        f"<td class='num'>{t['sold_7d']:,}</td>"
+        f"<td class='num'>{t['growth_7d']:.1f}x</td>"
+        f"{'<td class="num" style="color:#ef4444;font-weight:600">NEW</td>' if t['is_new'] else '<td class="num">-</td>'}"
+        f"<td class='num score'>{t['hot_score']:.0f}</td></tr>"
+        for i, t in enumerate(hot_rows, 1)
+    ) if hot_rows else "<tr><td colspan='7'>暂无趋势数据（重复执行采集后出现）</td></tr>"
+
     table_rows = _table_rows(analysis[:20], symbol)
     trend_html = _trend_block(trends)
 
@@ -316,6 +338,14 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
   </table></div>
 </section>
 
+<section class="panel">
+  <h2>爆品预测 Top 10（7天增速 + 新品检测）</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">近7天销量</th><th class="num">增速</th><th class="num">新品</th><th class="num">爆品指数</th></tr>
+    {hot_table}
+  </table></div>
+</section>
+
 <section class="cols2">
   <div class="panel"><h2>带货达人榜（按GMV）</h2>
     <div class="scroll"><table>
@@ -334,7 +364,7 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
 <section class="panel">
   <h2>爆品榜 Top 20（按选品分排序）</h2>
   <div class="scroll"><table>
-    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">近7天</th><th class="num">带货达人</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">选品分</th></tr>
+    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">近7天</th><th class="num">带货达人</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">爆品指数</th><th class="num">选品分</th></tr>
     {table_rows}
   </table></div>
 </section>
@@ -357,6 +387,7 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
 def _export_csv(db: Database, analysis: list[dict], csv_path: Path, symbol: str) -> None:
     fields = ["rank", "product_id", "title", "category", "price", "sold_count",
               "sale_7d_cnt", "sale_30d_cnt", "gmv_total", "influencer_cnt", "video_cnt",
+              "trend_sold_7d", "growth_7d", "is_new", "hot_score",
               "rating", "review_count", "video_views", "est_profit", "est_margin",
               "demand_score", "competition_score", "profit_score", "selection_score"]
     with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
@@ -375,6 +406,10 @@ def _export_csv(db: Database, analysis: list[dict], csv_path: Path, symbol: str)
                 "gmv_total": a.get("gmv_total") or 0,
                 "influencer_cnt": a.get("influencer_cnt") or 0,
                 "video_cnt": a.get("video_cnt") or 0,
+                "trend_sold_7d": a.get("trend_sold_7d") or 0,
+                "growth_7d": a.get("growth_7d") or 0,
+                "is_new": a.get("is_new") or 0,
+                "hot_score": a.get("hot_score") or 0,
                 "rating": a["rating"],
                 "review_count": a["review_count"],
                 "video_views": a["video_views"],

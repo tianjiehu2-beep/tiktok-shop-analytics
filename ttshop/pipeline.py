@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 
 from .analysis.scoring import run_analysis
+from .analysis.trend import compute_trends
 from .config import Settings
 from .db import Database
 from .report.html_report import build_report
@@ -53,7 +54,8 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
     logger.info("数据源 %s 获取商品 %d 条，写入 %d 条", source, len(result.products), written)
 
     analyzed = run_analysis(db, settings)
+    trended = compute_trends(db, settings)
     report_path = Path(settings.report_dir) / "tiktok_shop_report.html"
     build_report(db, settings, report_path)
-    logger.info("分析完成 %d 条，报告已生成: %s", analyzed, report_path)
+    logger.info("分析完成 %d 条，趋势/爆品指数 %d 条，报告已生成: %s", analyzed, trended, report_path)
     return report_path

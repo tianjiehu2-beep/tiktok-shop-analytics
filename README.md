@@ -109,6 +109,9 @@ python main.py run --source api --keyword "yoga mat" --with-influencers   # 商�
 # 7) 关键词数据：趋势搜索词榜 / 关键词灵感（发现选题与选品方向）
 python main.py keywords --tab all --limit 20                  # 飙升关键词
 python main.py keywords --keyword yoga --limit 20             # 围绕 yoga 的相关热词
+
+# 8) 趋势分析与爆品预测：7天/30天增速、新品检测、爆品指数（run 全流程自动计算）
+python main.py trend --limit 15                              # 查看爆品预测榜
 ```
 
 支持的数据字段：
@@ -117,7 +120,9 @@ python main.py keywords --keyword yoga --limit 20             # 围绕 yoga 的�
 - 达人（`influencer/list` / `influencer/ranklist` / `product/influencer/list`）：粉丝数、
   视频数、互动率、EC分、带货量/GMV、平均带货视频播放、商品-达人带货关系。
 - 关键词（`trending/keyword/ranking` / `inspiration/keyword`）：热词、视频数、热度、7天趋势。
-看板已包含商品/类目/达人/关键词四个维度。
+- 趋势/爆品（`price_snapshots` 时间序列 + `product_trends`）：近7天/30天销量增量、7天增速（相对前23天日均）、
+  新品检测（14天内起量）、爆品指数（速度×动能×新品）。
+看板已包含商品/类目/达人/关键词/爆品预测五个维度。
 
 ## 常用命令
 ```bash

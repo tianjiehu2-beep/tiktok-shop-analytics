@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS product_influencers (
     captured_at   TEXT NOT NULL,
     PRIMARY KEY (product_id, user_id, captured_at)
 );
+
+CREATE TABLE IF NOT EXISTS product_trends (
+    product_id     TEXT PRIMARY KEY,
+    sold_7d        INTEGER NOT NULL DEFAULT 0,
+    sold_30d       INTEGER NOT NULL DEFAULT 0,
+    growth_7d      REAL NOT NULL DEFAULT 0,
+    is_new         INTEGER NOT NULL DEFAULT 0,
+    is_hot         INTEGER NOT NULL DEFAULT 0,
+    velocity_score REAL NOT NULL DEFAULT 0,
+    momentum_score REAL NOT NULL DEFAULT 0,
+    novelty_score  REAL NOT NULL DEFAULT 0,
+    hot_score      REAL NOT NULL DEFAULT 0,
+    computed_at    TEXT NOT NULL
+);
 """
 
 
@@ -268,6 +282,55 @@ class Database:
                 """SELECT * FROM product_influencers WHERE product_id = ?
                    ORDER BY per_sale_cnt DESC LIMIT ?""", (product_id, limit)
             ).fetchall()
+        return [dict(r) for r in rows]
+
+    def snapshot_series(self, days: int = 60) -> dict[str, list[dict]]:
+        """近 days 天内每个商品的销量快照序列 {product_id: [ {sold_count, captured_at} ]}。"""
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT product_id, sold_count, captured_at
+                   FROM price_snapshots
+                   WHERE captured_at >= date('now', ?)
+                   ORDER BY product_id, captured_at""",
+                (f"-{days} days",),
+            ).fetchall()
+        series: dict[str, list[dict]] = {}
+        for r in rows:
+            series.setdefault(r["product_id"], []).append({"sold_count": r["sold_count"], "captured_at": r["captured_at"]})
+        return series
+
+    def save_trends(self, rows: list[dict]) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for t in rows:
+                conn.execute(
+                    """INSERT INTO product_trends
+                       (product_id, sold_7d, sold_30d, growth_7d, is_new, is_hot,
+                        velocity_score, momentum_score, novelty_score, hot_score, computed_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(product_id) DO UPDATE SET
+                        sold_7d=excluded.sold_7d, sold_30d=excluded.sold_30d,
+                        growth_7d=excluded.growth_7d, is_new=excluded.is_new,
+                        is_hot=excluded.is_hot, velocity_score=excluded.velocity_score,
+                        momentum_score=excluded.momentum_score, novelty_score=excluded.novelty_score,
+                        hot_score=excluded.hot_score, computed_at=excluded.computed_at""",
+                    (t["product_id"], t["sold_7d"], t["sold_30d"], t["growth_7d"],
+                     t["is_new"], t["is_hot"], t["velocity_score"], t["momentum_score"],
+                     t["novelty_score"], t["hot_score"], now),
+                )
+                written += 1
+        return written
+
+    def latest_trends(self, limit: int = 20, only_hot: bool = False) -> list[dict]:
+        sql = """SELECT t.*, p.title, p.category, p.price, p.sold_count, p.sale_7d_cnt,
+                        p.influencer_cnt, p.video_cnt
+                 FROM product_trends t JOIN products p ON p.product_id = t.product_id"""
+        if only_hot:
+            sql += " WHERE t.is_hot = 1"
+        sql += " ORDER BY t.hot_score DESC LIMIT ?"
+        with self.conn() as conn:
+            rows = conn.execute(sql, (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def products(self, category: str | None = None, limit: int | None = None) -> list[dict]:
