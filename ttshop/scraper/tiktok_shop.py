@@ -67,22 +67,26 @@ class TikTokShopScraper:
     """基于 Playwright 的 TikTok Shop 商品采集器。"""
 
     def __init__(self, region: str = "US", headless: bool = True, slow_mo_ms: int = 800,
-                 max_products_per_run: int = 100):
+                 max_products_per_run: int = 100, proxy: str | None = None):
         self.region = region
         self.headless = headless
         self.slow_mo_ms = slow_mo_ms
         self.max_products_per_run = max_products_per_run
+        self.proxy = proxy
 
     def _browser(self):
         from playwright.sync_api import sync_playwright  # 延迟导入，demo 模式无需安装
         playwright = sync_playwright().start()
         browser = playwright.chromium.launch(headless=self.headless, slow_mo=self.slow_mo_ms)
-        context = browser.new_context(
+        context_kwargs = dict(
             locale="en-US",
             timezone_id="America/New_York",
             user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                         "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
         )
+        if self.proxy:
+            context_kwargs["proxy"] = {"server": self.proxy}
+        context = browser.new_context(**context_kwargs)
         return playwright, browser, context
 
     def scrape_search(self, keyword: str, limit: int | None = None) -> list[Product]:

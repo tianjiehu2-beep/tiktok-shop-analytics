@@ -15,10 +15,19 @@ class Settings:
     region: str = "US"
     currency: str = "USD"
 
-    # 真实采集
+    # 真实采集（scraper 数据源）
     headless: bool = True
     slow_mo_ms: int = 800
     max_products_per_run: int = 100
+
+    # 代理（scraper 数据源使用，如 socks5://127.0.0.1:40000；空则直连）
+    proxy: str = ""
+
+    # 第三方数据 API（api 数据源，如 Kalodata/EchoTik/FastMoss）
+    api_provider: str = "kalodata"
+    api_base: str = ""          # 留空则用内置的示例地址（以平台官方文档为准）
+    api_key: str = ""           # 留空时从 TTSHOP_API_KEY 环境变量读取
+    api_timeout: int = 30       # 请求超时（秒）
 
     # 毛利测算参数（跨境小包直发模型，可按品类调整）
     purchase_cost_ratio: float = 0.25   # 采购成本 / 售价（1688 拿货估算）
