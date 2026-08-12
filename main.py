@@ -104,9 +104,9 @@ def cmd_stats(args, settings: Settings) -> int:
 def cmd_run(args, settings: Settings) -> int:
     source = "demo" if args.demo else args.source
     if source is None:
-        source = "scraper" if args.keyword else "demo"
-    if source in ("scraper", "api") and not args.keyword:
-        print(f"{source} 数据源需要 --keyword（例如: python main.py run --source {source} --keyword \"yoga mat\"）")
+        source = "api" if (args.keyword or args.category_id) else "demo"
+    if source in ("scraper", "api") and not args.keyword and not (source == "api" and args.category_id):
+        print(f"{source} 数据源需要 --keyword 或 --category-id（例如: python main.py run --source {source} --keyword \"yoga mat\"）")
         return 1
     db = _get_db(args, settings)
     try:
@@ -115,6 +115,11 @@ def cmd_run(args, settings: Settings) -> int:
             product_count=args.products, limit=args.limit, seed=getattr(args, "seed", None),
             proxy=args.proxy, category=args.category,
             api_provider=args.provider, api_base=args.api_base, api_key=args.api_key,
+            category_id=getattr(args, "category_id", None), pages=getattr(args, "pages", 1),
+            sort_field=getattr(args, "sort", None),
+            min_sales=getattr(args, "min_sales", None), max_price=getattr(args, "max_price", None),
+            min_commission=getattr(args, "min_commission", None), enrich=getattr(args, "enrich", False),
+            language=getattr(args, "language", "en-US"),
         )
     except ImportError:
         print("未安装 playwright，无法使用 scraper 数据源。")
@@ -134,6 +139,51 @@ def cmd_run(args, settings: Settings) -> int:
     return 0
 
 
+def cmd_categories(args, settings: Settings) -> int:
+    from ttshop.sources import ApiSource
+
+    source = ApiSource(settings=settings, provider=args.provider,
+                       api_base=args.api_base, api_key=args.api_key,
+                       language=args.language)
+    if args.refresh:
+        tree = source.fetch_categories(refresh=True)
+        print(f"类目树已刷新: {source.categories_cache}（l1={len(tree['l1'])} l2={len(tree['l2'])} l3={len(tree['l3'])}）")
+        return 0
+    if args.search:
+        matches = source.search_categories(args.search, limit=args.limit)
+        if not matches:
+            print(f"未找到包含 {args.search!r} 的类目，可先执行: python main.py categories --refresh")
+            return 0
+        for m in matches:
+            print(f"{m['category_id']}  [L{m['level']}]  {m['path']}")
+        print(f"共 {len(matches)} 条匹配")
+        return 0
+    tree = source.fetch_categories()
+    print(f"EchoTik 一级类目（{len(tree['l1'])} 个，缓存: {source.categories_cache}）")
+    print("用法示例:")
+    print("  python main.py categories --search 瑜伽     # 按名称搜类目（可搜三级）")
+    print("  python main.py run --source api --category-id <类目ID> --pages 3")
+    print()
+    for c in tree["l1"]:
+        print(f"{c['category_id']}  {c['category_name']}")
+    return 0
+
+
+def cmd_ranklist(args, settings: Settings) -> int:
+    from ttshop.sources import ApiSource
+
+    source = ApiSource(settings=settings, provider=args.provider,
+                       api_base=args.api_base, api_key=args.api_key,
+                       language=args.language)
+    result = source.fetch_ranklist(category_id=args.category_id, date=args.date,
+                                   period=args.period, rank_field=args.rank_field,
+                                   limit=args.limit)
+    db = _get_db(args, settings)
+    written = db.upsert_products(result.products)
+    print(f"榜单采集完成: {len(result.products)} 条（{args.period}榜, {args.rank_field}），写入 {written} 条")
+    return 0
+
+
 def cmd_schedule(args, settings: Settings) -> int:
     from ttshop.scheduler import run_loop
 
@@ -149,8 +199,13 @@ def cmd_schedule(args, settings: Settings) -> int:
         run_pipeline(
             db, settings, demo=args.demo, source=args.source, keyword=args.keyword,
             product_count=args.products, limit=args.limit,
-            proxy=args.proxy, category=args.category,
+            proxy=args.proxy, category=getattr(args, "category", None),
             api_provider=args.provider, api_base=args.api_base, api_key=args.api_key,
+            category_id=getattr(args, "category_id", None), pages=getattr(args, "pages", 1),
+            sort_field=getattr(args, "sort", None),
+            min_sales=getattr(args, "min_sales", None), max_price=getattr(args, "max_price", None),
+            min_commission=getattr(args, "min_commission", None), enrich=getattr(args, "enrich", False),
+            language=getattr(args, "language", "en-US"),
         )
 
     run_loop(job, run_at=args.time, interval_minutes=args.interval_minutes, once=args.once)
@@ -190,6 +245,24 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape.add_argument("--proxy", default=None, help="代理地址，如 socks5://127.0.0.1:40000")
     p_scrape.set_defaults(func=cmd_scrape)
 
+    p_categories = sub.add_parser("categories", help="浏览/搜索 TikTok Shop 类目树（EchoTik）并获取类目ID")
+    p_categories.add_argument("--search", default=None, help="按名称搜索类目，例如 瑜伽 / home / kitchen")
+    p_categories.add_argument("--refresh", action="store_true", help="强制重新拉取类目树并刷新缓存")
+    p_categories.add_argument("--limit", type=int, default=50, help="搜索结果条数上限")
+    p_categories.add_argument("--language", default="en-US", help="类目语言，默认 en-US")
+    _add_source_args(p_categories)
+    p_categories.set_defaults(func=cmd_categories)
+
+    p_ranklist = sub.add_parser("ranklist", help="采集商品榜单（EchoTik，日/周/月榜）")
+    p_ranklist.add_argument("--category-id", default=None, help="类目ID（用 categories 命令查）")
+    p_ranklist.add_argument("--date", default=None, help="榜单日期 yyyy-MM-dd，默认今天")
+    p_ranklist.add_argument("--period", choices=["day", "week", "month"], default="day", help="榜单周期")
+    p_ranklist.add_argument("--rank-field", choices=["sales", "influencer"], default="sales", help="榜单排序字段")
+    p_ranklist.add_argument("--limit", type=int, default=10)
+    p_ranklist.add_argument("--language", default="en-US")
+    _add_source_args(p_ranklist)
+    p_ranklist.set_defaults(func=cmd_ranklist)
+
     p_analyze = sub.add_parser("analyze", help="运行选品评分与毛利分析")
     p_analyze.set_defaults(func=cmd_analyze)
 
@@ -204,7 +277,16 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--demo", action="store_true", help="使用模拟数据（等价于 --source demo）")
     p_run.add_argument("--keyword", default=None)
     p_run.add_argument("--limit", type=int, default=None)
-    p_run.add_argument("--category", default=None)
+    p_run.add_argument("--category", default=None, help="类目标签（写库时标记用）")
+    p_run.add_argument("--category-id", default=None, help="类目ID按类目采集（api源，用 categories 命令查询）")
+    p_run.add_argument("--pages", type=int, default=1, help="按类目采集翻页数（每页最多10条）")
+    p_run.add_argument("--sort", default=None, choices=["sales", "gmv", "price", "sales7d", "sales30d", "gmv7d", "gmv30d"],
+                       help="按类目采集排序字段（默认销量降序）")
+    p_run.add_argument("--min-sales", type=int, default=None, help="筛选最低总销量")
+    p_run.add_argument("--max-price", type=float, default=None, help="筛选最高均价（美元）")
+    p_run.add_argument("--min-commission", type=float, default=None, help="筛选最低佣金率")
+    p_run.add_argument("--enrich", action="store_true", help="采集后调用商品详情接口补全评分/评论/GMV")
+    p_run.add_argument("--language", default="en-US", help="类目语言（默认 en-US）")
     p_run.add_argument("--products", type=int, default=200)
     p_run.add_argument("--seed", type=int, default=None)
     _add_source_args(p_run)
@@ -216,6 +298,15 @@ def main(argv: list[str] | None = None) -> int:
     p_schedule.add_argument("--once", action="store_true", help="立即执行一次后退出（配合 Windows 任务计划程序）")
     p_schedule.add_argument("--demo", action="store_true", help="使用模拟数据（等价于 --source demo）")
     p_schedule.add_argument("--keyword", default=None, help="scraper/api 数据源搜索关键词")
+    p_schedule.add_argument("--category", default=None, help="类目标签")
+    p_schedule.add_argument("--category-id", default=None, help="类目ID按类目采集（api源）")
+    p_schedule.add_argument("--pages", type=int, default=1)
+    p_schedule.add_argument("--sort", default=None, choices=["sales", "gmv", "price", "sales7d", "sales30d", "gmv7d", "gmv30d"])
+    p_schedule.add_argument("--min-sales", type=int, default=None)
+    p_schedule.add_argument("--max-price", type=float, default=None)
+    p_schedule.add_argument("--min-commission", type=float, default=None)
+    p_schedule.add_argument("--enrich", action="store_true")
+    p_schedule.add_argument("--language", default="en-US")
     p_schedule.add_argument("--products", type=int, default=200)
     p_schedule.add_argument("--limit", type=int, default=None)
     _add_source_args(p_schedule)

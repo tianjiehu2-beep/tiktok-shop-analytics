@@ -139,6 +139,8 @@ def _table_rows(analysis: list[dict], symbol: str) -> str:
             f"<td><span class='tag'>{_esc(a['category'])}</span></td>"
             f"<td class='num'>{_money(a['price'], symbol)}</td>"
             f"<td class='num'>{a['sold_count']:,}</td>"
+            f"<td class='num'>{a.get('sale_7d_cnt') or 0:,}</td>"
+            f"<td class='num'>{a.get('influencer_cnt') or 0:,}</td>"
             f"<td class='num'>{a['rating']}</td>"
             f"<td class='num'>{a['review_count']:,}</td>"
             f"<td class='num'>{_money(a['est_profit'], symbol)}</td>"
@@ -273,7 +275,7 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
 <section class="panel">
   <h2>爆品榜 Top 20（按选品分排序）</h2>
   <div class="scroll"><table>
-    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">选品分</th></tr>
+    <tr><th>#</th><th>商品</th><th>类目</th><th class="num">售价</th><th class="num">已售</th><th class="num">近7天</th><th class="num">带货达人</th><th class="num">评分</th><th class="num">评论数</th><th class="num">预估毛利</th><th class="num">毛利率</th><th class="num">选品分</th></tr>
     {table_rows}
   </table></div>
 </section>
@@ -294,8 +296,9 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
 
 
 def _export_csv(db: Database, analysis: list[dict], csv_path: Path, symbol: str) -> None:
-    fields = ["rank", "product_id", "title", "category", "price", "sold_count", "rating",
-              "review_count", "video_views", "est_profit", "est_margin",
+    fields = ["rank", "product_id", "title", "category", "price", "sold_count",
+              "sale_7d_cnt", "sale_30d_cnt", "gmv_total", "influencer_cnt", "video_cnt",
+              "rating", "review_count", "video_views", "est_profit", "est_margin",
               "demand_score", "competition_score", "profit_score", "selection_score"]
     with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
@@ -308,6 +311,11 @@ def _export_csv(db: Database, analysis: list[dict], csv_path: Path, symbol: str)
                 "category": a["category"],
                 "price": a["price"],
                 "sold_count": a["sold_count"],
+                "sale_7d_cnt": a.get("sale_7d_cnt") or 0,
+                "sale_30d_cnt": a.get("sale_30d_cnt") or 0,
+                "gmv_total": a.get("gmv_total") or 0,
+                "influencer_cnt": a.get("influencer_cnt") or 0,
+                "video_cnt": a.get("video_cnt") or 0,
                 "rating": a["rating"],
                 "review_count": a["review_count"],
                 "video_views": a["video_views"],

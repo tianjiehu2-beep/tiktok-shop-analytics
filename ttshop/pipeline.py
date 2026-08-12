@@ -23,7 +23,11 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
                  seed: int | None = None, proxy: str | None = None,
                  category: str | None = None,
                  api_provider: str | None = None, api_base: str | None = None,
-                 api_key: str | None = None) -> Path:
+                 api_key: str | None = None, category_id: str | None = None,
+                 pages: int = 1, sort_field: str | None = None,
+                 min_sales: int | None = None, max_price: float | None = None,
+                 min_commission: float | None = None, enrich: bool = False,
+                 language: str = "en-US") -> Path:
     """执行一次完整数据管道，返回 HTML 报告路径。
 
     :param demo: True 时强制使用 demo 数据源（等价 source='demo'）
@@ -37,6 +41,9 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
         source, settings,
         seed=seed, product_count=product_count, proxy=proxy, category=category,
         api_provider=api_provider, api_base=api_base, api_key=api_key,
+        category_id=category_id, pages=pages, sort_field=sort_field,
+        min_sales=min_sales, max_price=max_price, min_commission=min_commission,
+        enrich=enrich, language=language,
     )
     result = data_source.fetch(keyword=keyword, limit=limit, category=category)
 

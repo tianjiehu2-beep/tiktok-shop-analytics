@@ -42,5 +42,13 @@ def get_source(name: str | None, settings: Settings | None = None, **kwargs) -> 
             api_key=kwargs.pop("api_key", None),
             region=kwargs.pop("region", settings.region),
             timeout=kwargs.pop("api_timeout", None),
+            category_id=kwargs.pop("category_id", None),
+            pages=kwargs.pop("pages", 1),
+            sort_field=kwargs.pop("sort_field", None),
+            min_sales=kwargs.pop("min_sales", None),
+            max_price=kwargs.pop("max_price", None),
+            min_commission=kwargs.pop("min_commission", None),
+            enrich=kwargs.pop("enrich", False),
+            language=kwargs.pop("language", "en-US"),
         )
     raise ValueError(f"未知数据源: {name!r}，可选 demo / scraper / api")

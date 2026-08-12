@@ -26,6 +26,12 @@ class Product:
     video_views: int
     video_likes: int
     listed_at: str
+    sale_7d_cnt: int = 0
+    sale_30d_cnt: int = 0
+    gmv_total: float = 0.0
+    influencer_cnt: int = 0
+    video_cnt: int = 0
+    category_id: str = ""
     first_seen_at: str = ""
     last_seen_at: str = ""
 

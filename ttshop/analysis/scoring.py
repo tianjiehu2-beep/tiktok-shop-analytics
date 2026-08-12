@@ -21,9 +21,13 @@ def _log_norm(value: float, cap: float = 1_000_000) -> float:
 
 
 def demand_score(p: dict) -> float:
-    sold = _log_norm(p["sold_count"] or 0)
-    views = _log_norm(p["video_views"] or 0)
-    score = (60 * sold + 40 * views) * 100
+    """需求度：总销量 + 近7天销量（当前热度）+ 视频播放 + 带货达人/视频规模。"""
+    sold = _log_norm(p.get("sold_count") or 0)
+    sale_7d = _log_norm(p.get("sale_7d_cnt") or 0, cap=100_000)
+    views = _log_norm(p.get("video_views") or 0)
+    influencers = _log_norm(p.get("influencer_cnt") or 0, cap=100_000)
+    videos = _log_norm(p.get("video_cnt") or 0, cap=100_000)
+    score = (45 * sold + 20 * sale_7d + 15 * views + 12 * influencers + 8 * videos) * 100
     return round(min(100.0, score), 1)
 
 

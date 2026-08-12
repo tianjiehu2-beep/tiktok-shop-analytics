@@ -186,3 +186,130 @@ class PipelineSourceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ApiSourceEchoTikAdvancedTest(unittest.TestCase):
+    def setUp(self):
+        self.source = ApiSource(settings=Settings(api_key="secret"), provider="echotik")
+
+    def test_normalize_echotik_new_fields(self):
+        item = {
+            "product_id": "P9001",
+            "product_name": "Yoga Mat",
+            "min_price": 19.99,
+            "total_sale_cnt": 1000,
+            "total_sale_7d_cnt": 120,
+            "total_sale_30d_cnt": 300,
+            "total_sale_gmv_amt": 50000.5,
+            "total_ifl_cnt": 88,
+            "total_video_cnt": 150,
+            "product_rating": 4.5,
+            "review_count": 40,
+            "category_id": "600154",
+        }
+        p = self.source.normalize_item(item, keyword="yoga mat")
+        self.assertIsNotNone(p)
+        self.assertEqual(p.sale_7d_cnt, 120)
+        self.assertEqual(p.sale_30d_cnt, 300)
+        self.assertEqual(p.gmv_total, 50000.5)
+        self.assertEqual(p.influencer_cnt, 88)
+        self.assertEqual(p.video_cnt, 150)
+        self.assertEqual(p.category_id, "600154")
+
+    def test_multi_keyword_dedupe(self):
+        seen = {"called": 0}
+        def fake_request(url, config, body=None):
+            seen["called"] += 1
+            return {"data": {"list": [
+                {"product_id": "P1", "title": "Yoga Mat", "price": 12.99, "sales": 100},
+            ]}}
+        self.source._request_json = fake_request
+        result = self.source.fetch(keyword="yoga mat,resistance band", limit=10)
+        self.assertEqual(seen["called"], 2)
+        self.assertEqual(len(result.products), 1)  # dedup by product_id
+        self.assertEqual(result.products[0].product_id, "P1")
+
+    def test_category_crawl_url_and_items(self):
+        self.source._tree = {
+            "language": "en-US",
+            "l1": [{"category_id": "600154", "category_name": "Textiles & Soft Furnishings", "parent_id": ""}],
+            "l2": [],
+            "l3": [],
+        }
+        captured = {}
+        def fake_request(url, config, body=None):
+            captured["url"] = url
+            return {"data": [
+                {"product_id": "C1", "product_name": "Cushion", "min_price": 9.9,
+                 "total_sale_cnt": 500, "category_id": "600154"},
+            ]}
+        self.source._request_json = fake_request
+        self.source.category_id = "600154"
+        result = self.source.fetch(limit=10)
+        url = captured["url"]
+        self.assertIn("/api/v3/echotik/product/list", url)
+        self.assertIn("category_id=600154", url)
+        self.assertIn("page_num=1", url)
+        self.assertIn("off_mark=0", url)
+        self.assertIn("region=US", url)
+        self.assertEqual(result.products[0].product_id, "C1")
+        # category name resolved from tree
+        self.assertIn("Textiles", result.products[0].category)
+
+    def test_category_crawl_sort_and_filters(self):
+        self.source._tree = {"l1": [], "l2": [], "l3": []}
+        captured = {}
+        def fake_request(url, config, body=None):
+            captured["url"] = url
+            return {"data": []}
+        self.source._request_json = fake_request
+        self.source.category_id = "999"
+        self.source.sort_field = "sales7d"
+        self.source.min_sales = 100
+        self.source.max_price = 50.0
+        self.source.min_commission = 0.1
+        self.source.fetch(limit=10)
+        url = captured["url"]
+        self.assertIn("product_sort_field=4", url)
+        self.assertIn("sort_type=1", url)
+        self.assertIn("min_total_sale_cnt=100", url)
+        self.assertIn("max_spu_avg_price=50.0", url)
+        self.assertIn("min_product_commission_rate=0.1", url)
+
+    def test_search_categories_by_name(self):
+        self.source._tree = {
+            "language": "en-US",
+            "l1": [{"category_id": "600001", "category_name": "Home Supplies", "parent_id": ""}],
+            "l2": [{"category_id": "600111", "category_name": "Yoga", "parent_id": "600001"}],
+            "l3": [{"category_id": "600999", "category_name": "Mats", "parent_id": "600111"}],
+        }
+        matches = self.source.search_categories("yoga")
+        self.assertTrue(matches)
+        self.assertTrue(any("Home Supplies" in m["path"] and "Yoga" in m["path"] for m in matches))
+        self.assertTrue(any("Mats" in m["path"] for m in matches))
+
+    def test_ranklist_unsupported_provider(self):
+        source = ApiSource(settings=Settings(api_key="secret"), provider="fastmoss")
+        with self.assertRaises(RuntimeError):
+            source.fetch_ranklist()
+
+    def test_enrich_merges_detail(self):
+        base = self.source
+        base._request_json = lambda url, config, body=None: {
+            "data": [
+                {"product_id": "P1", "title": "Yoga Mat Pro", "price": 12.99, "sales": 100,
+                 "total_sale_cnt": 100, "product_rating": 4.9, "review_count": 300,
+                 "total_sale_gmv_amt": 5000.0, "total_ifl_cnt": 12, "total_video_cnt": 30},
+            ]
+        }
+        products = [
+            Product(product_id="P1", title="Yoga Mat Pro", category="Unknown", price=12.99,
+                    original_price=12.99, sold_count=100, rating=0.0, review_count=0,
+                    seller_name="", seller_id="", commission_rate=0.0, video_views=0,
+                    video_likes=0, listed_at=""),
+        ]
+        enriched = base._enrich_details(base._provider_config(), "https://open.echotik.live", products)
+        self.assertEqual(enriched[0].rating, 4.9)
+        self.assertEqual(enriched[0].review_count, 300)
+        self.assertEqual(enriched[0].gmv_total, 5000.0)
+        self.assertEqual(enriched[0].influencer_cnt, 12)

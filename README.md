@@ -72,18 +72,52 @@ python main.py run --source api --keyword "yoga mat" --provider echotik
    ```
 4. 请求：`GET https://open.echotik.live/api/v3/echotik/search/items?sk=关键词&type=2&size=30`，
    认证头 `Authorization: Basic <Base64>`，商品列表取 `data.list`（字段见 `normalize_item`）。
+5. 按类目采集时用 `--category-id`（先 `python main.py categories --search <词>` 拿类目 ID），
+   商品列表接口 `GET /api/v3/echotik/product/list` 每页最多 10 条，用 `--pages` 翻页。
 各平台响应字段不同，在 `ttshop/sources/api.py` 的 `PROVIDERS` 中按官方文档调整
 base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normalize_item` 中完成。
 新增数据源：实现 `ttshop/sources/base.py` 的 `DataSource` 并在 `get_source` 注册即可。
+
+## 成熟采集：按类目 / 按具体商品批量爬（EchoTik API）
+采集器已对接 EchoTik 多个真实接口，支持类目树浏览、按类目分页采集、批量关键词、
+商品详情补全与商品榜单，落库后自动做毛利测算、选品评分并生成看板。
+
+```bash
+# 1) 浏览 / 搜索类目，拿到类目 ID（缓存到 data/categories.json）
+python main.py categories                      # 列出全部一级类目
+python main.py categories --search yoga        # 按名称搜类目（支持三级类目）
+python main.py categories --refresh            # 强制刷新类目缓存
+
+# 2) 按类目采集：翻页 + 按近7天销量排序 + 详情补全
+python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich
+
+# 3) 按具体东西采集：支持逗号分隔批量关键词，自动去重
+python main.py run --source api --keyword "yoga mat,resistance band,pilates bar" --limit 30
+
+# 4) 筛选条件：最低销量 / 最高均价 / 最低佣金率
+python main.py run --source api --category-id 600001 --pages 3 --min-sales 1000 --max-price 30 --min-commission 0.1
+
+# 5) 采集商品榜单（日/周/月榜）
+python main.py ranklist --category-id 603084 --period day --limit 10
+python main.py ranklist --period week --limit 10
+```
+
+支持的数据字段（EchoTik `product/list` / `product/detail`）：
+售价区间、总销量、近 7 天/30 天销量、总 GMV、评分、评论数、佣金率、带货达人数、
+带货视频数、是否包邮/爆款/全托管、三级类目路径等；看板表格与 CSV 均已包含。
 
 ## 常用命令
 ```bash
 python main.py init                          # 初始化数据库
 python main.py seed --products 300           # 生成模拟商品（可重复执行，模拟增量采集）
+python main.py categories --search yoga      # 搜类目拿 ID（EchoTik）
 python main.py analyze                       # 运行选品评分与毛利分析
 python main.py report                        # 生成 HTML 看板 + top_products.csv
 python main.py stats                         # 查看数据规模
 python main.py run --demo                    # 一键全流程（模拟数据）
+python main.py run --source api --category-id 603084 --pages 3   # 按类目真实采集
+python main.py run --source api --keyword "yoga mat"             # 按关键词真实采集
+python main.py ranklist --period day         # 采集商品榜单
 python main.py schedule --once --demo        # 立即执行一次（测试）
 python main.py schedule --time 08:30 --demo  # 每天 08:30 自动执行
 ```

@@ -70,9 +70,22 @@ class Database:
         finally:
             conn.close()
 
+    EXTRA_COLUMNS = {
+        "sale_7d_cnt": "INTEGER NOT NULL DEFAULT 0",
+        "sale_30d_cnt": "INTEGER NOT NULL DEFAULT 0",
+        "gmv_total": "REAL NOT NULL DEFAULT 0",
+        "influencer_cnt": "INTEGER NOT NULL DEFAULT 0",
+        "video_cnt": "INTEGER NOT NULL DEFAULT 0",
+        "category_id": "TEXT",
+    }
+
     def init_schema(self) -> None:
         with self.conn() as conn:
             conn.executescript(SCHEMA)
+            existing = {r["name"] for r in conn.execute("PRAGMA table_info(products)").fetchall()}
+            for col, ddl in self.EXTRA_COLUMNS.items():
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE products ADD COLUMN {col} {ddl}")
 
     def upsert_products(self, products: list[Product]) -> int:
         """新增或更新商品，并写入一条当前价格/销量快照。"""
@@ -84,8 +97,10 @@ class Database:
                     """INSERT INTO products
                        (product_id, title, category, price, original_price, sold_count,
                         rating, review_count, seller_name, seller_id, commission_rate,
-                        video_views, video_likes, listed_at, first_seen_at, last_seen_at, is_active)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+                        video_views, video_likes, listed_at, sale_7d_cnt, sale_30d_cnt,
+                        gmv_total, influencer_cnt, video_cnt, category_id,
+                        first_seen_at, last_seen_at, is_active)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
                        ON CONFLICT(product_id) DO UPDATE SET
                         title=excluded.title, category=excluded.category, price=excluded.price,
                         original_price=excluded.original_price, sold_count=excluded.sold_count,
@@ -93,11 +108,15 @@ class Database:
                         seller_name=excluded.seller_name, seller_id=excluded.seller_id,
                         commission_rate=excluded.commission_rate, video_views=excluded.video_views,
                         video_likes=excluded.video_likes, listed_at=excluded.listed_at,
+                        sale_7d_cnt=excluded.sale_7d_cnt, sale_30d_cnt=excluded.sale_30d_cnt,
+                        gmv_total=excluded.gmv_total, influencer_cnt=excluded.influencer_cnt,
+                        video_cnt=excluded.video_cnt, category_id=excluded.category_id,
                         last_seen_at=excluded.last_seen_at, is_active=1""",
                     (p.product_id, p.title, p.category, p.price, p.original_price,
                      p.sold_count, p.rating, p.review_count, p.seller_name, p.seller_id,
                      p.commission_rate, p.video_views, p.video_likes, p.listed_at,
-                     p.first_seen_at or now, now),
+                     p.sale_7d_cnt, p.sale_30d_cnt, p.gmv_total, p.influencer_cnt,
+                     p.video_cnt, p.category_id, p.first_seen_at or now, now),
                 )
                 conn.execute(
                     """INSERT INTO price_snapshots (product_id, price, sold_count, captured_at)
