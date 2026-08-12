@@ -58,7 +58,7 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
     trended = compute_trends(db, settings)
     alerted = compute_alerts(db)
     report_path = Path(settings.report_dir) / "tiktok_shop_report.html"
-    build_report(db, settings, report_path)
+    build_report(db, settings, report_path, source=source)
     logger.info("分析 %d 条，趋势 %d 条，今日异动 %d 条，报告已生成: %s",
                 analyzed, trended, alerted, report_path)
     return report_path

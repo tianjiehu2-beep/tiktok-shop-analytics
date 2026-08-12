@@ -156,18 +156,20 @@ HTML 看板并部署到 GitHub Pages，简历里可以放一个可点击的在�
    `TTSHOP_API_KEY`（存在则自动用真实数据，否则回退 demo 数据）。
 看板地址形如：`https://<用户名>.github.io/<仓库名>/index.html`。
 
-## 定时调度（每日自动跑数据管道）
+## 每日自动更新（真实数据 + 推送 GitHub，免费）
+本地每天定时跑真实 API 采集，生成看板后自动推送到 GitHub；CI 检测到已提交的真实数据时直接部署，不再用 demo 覆盖。
 
 ```bash
-# 前台方式（保持窗口开着）
-python main.py schedule --time 08:30 --demo
+# 1) 首次：把 API Key 写入本地文件 data/api_key.txt（已被 gitignore），留空则用 TTSHOP_API_KEY 环境变量
 
-# 推荐生产方式：注册 Windows 任务计划程序（管理员 PowerShell）
-.\scripts\install_task.ps1
-.\scripts\install_task.ps1 -Keyword "yoga mat" -Time "07:00"
+# 2) 注册 Windows 任务计划程序（管理员 PowerShell）：默认每天 08:00
+.\scripts\install_task.ps1 -Time "08:00"
+
+# 3) 手动试跑一次
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\push_report.ps1
 ```
-任务执行日志写入 `logs/scheduler.log`；单次任务失败不会中断后续调度。
 
+执行日志写入 `logs/push_report_yyyyMMdd.log`；`reports/` 下的看板与 Top 商品 CSV 会随每日提交推送到仓库。
 ## Playwright 真实采集 TikTok Shop
 ```bash
 pip install playwright

@@ -230,7 +230,7 @@ tr:hover td { background: #f8fafc; }
 """
 
 
-def build_report(db: Database, settings, output_path: str | Path) -> Path:
+def build_report(db: Database, settings, output_path: str | Path, source: str | None = None) -> Path:
     """读取数据库，生成 HTML 看板与 Top 商品 CSV。返回报告文件路径。"""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +241,13 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
     stats = db.stats()
     symbol = settings.currency_symbol
     generated_at = utc_now_display()
+    source = source or "unknown"
+    source_label = {
+        "api": "api（EchoTik/FastMoss API 采集）",
+        "scraper": "scraper（Playwright 直连采集）",
+        "demo": "demo（演示数据）",
+        "seed": "seed（模拟数据）",
+    }.get(source, f"{source}（其他来源）")
 
     margins = [a["est_margin"] for a in analysis if a.get("est_margin") is not None]
     avg_margin = statistics.mean(margins) if margins else 0.0
@@ -322,7 +329,7 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
     body = f"""
 <header>
   <h1>TikTok Shop 爆品监测与选品分析看板</h1>
-  <p>目标市场：{_esc(settings.region)} ｜ 生成时间：{_esc(generated_at)} ｜ 数据为演示/公开数据，仅用于学习研究</p>
+  <p>数据源：{_esc(source_label)} ｜ 目标市场：{_esc(settings.region)} ｜ 生成时间：{_esc(generated_at)} ｜ 数据仅供学习研究</p>
 </header>
 
 <section class="cards">

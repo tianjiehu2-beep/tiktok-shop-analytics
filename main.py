@@ -87,7 +87,7 @@ def cmd_analyze(args, settings: Settings) -> int:
 def cmd_report(args, settings: Settings) -> int:
     db = _get_db(args, settings)
     output = Path(args.output) if args.output else Path(settings.report_dir) / "tiktok_shop_report.html"
-    report_path = build_report(db, settings, output)
+    report_path = build_report(db, settings, output, source=getattr(args, "source", None))
     print(f"报告已生成: {report_path}")
     print(f"Top 商品 CSV: {report_path.parent / 'top_products.csv'}")
     return 0
@@ -420,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_report = sub.add_parser("report", help="生成 HTML 分析看板")
     p_report.add_argument("--output", default=None)
+    p_report.add_argument("--source", default=None, help="数据源标记：api/scraper/demo，用于看板显示与 CI 判断")
     p_report.set_defaults(func=cmd_report)
 
     p_stats = sub.add_parser("stats", help="查看数据库统计")

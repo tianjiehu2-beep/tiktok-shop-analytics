@@ -5,9 +5,7 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/tmp/
-reports/*.html
-reports/*.csv
 reports/*.png
 reports/*.jpg
 logs/*.log
-reports/alerts_*.md
+data/api_key.txt
