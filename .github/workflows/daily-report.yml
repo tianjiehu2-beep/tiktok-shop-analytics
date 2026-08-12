@@ -30,7 +30,8 @@ jobs:
       - name: 生成数据与看板
         run: |
           if [ -n "${{ secrets.TTSHOP_API_KEY }}" ]; then
-            python main.py run --source api --keyword "yoga mat" --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py run --source api --keyword "yoga mat" --limit 30 --api-key "${{ secrets.TTSHOP_API_KEY }}"
           else
             python main.py run --source demo --products 300
           fi
