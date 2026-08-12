@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -682,7 +683,7 @@ class ApiSource(DataSource):
         return self._build_url(config, base, keyword, limit, category), None
 
     def _request_json(self, url: str, config: ProviderConfig,
-                      body: dict | None = None) -> dict:
+                      body: dict | None = None, retries: int = 2) -> dict:
         headers = {"Accept": "application/json", "User-Agent": "ttshop-analytics/0.1"}
         if config.auth_header:
             headers[config.auth_header] = config.auth_prefix + self.api_key
@@ -691,15 +692,32 @@ class ApiSource(DataSource):
             headers["Content-Type"] = "application/json"
             data = json.dumps(body).encode("utf-8")
         request = Request(url, data=data, headers=headers)
-        try:
-            with urlopen(request, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8", errors="replace"))
-        except HTTPError as exc:
-            raise RuntimeError(f"API request failed HTTP {exc.code}: {exc.reason}") from exc
-        except URLError as exc:
-            raise RuntimeError(f"API network error: {exc.reason}") from exc
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"API response is not valid JSON: {exc}") from exc
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                with urlopen(request, timeout=self.timeout) as resp:
+                    return json.loads(resp.read().decode("utf-8", errors="replace"))
+            except HTTPError as exc:
+                last_error = exc
+                if attempt < retries and exc.code >= 500:
+                    wait = 2 ** attempt
+                    logger.warning("API HTTP %s（第 %d 次），%ss 后重试: %s",
+                                   exc.code, attempt + 1, wait, url)
+                    time.sleep(wait)
+                    continue
+                raise RuntimeError(f"API request failed HTTP {exc.code}: {exc.reason}") from exc
+            except URLError as exc:
+                last_error = exc
+                if attempt < retries:
+                    wait = 2 ** attempt
+                    logger.warning("API 网络错误（第 %d 次），%ss 后重试: %s",
+                                   attempt + 1, wait, url)
+                    time.sleep(wait)
+                    continue
+                raise RuntimeError(f"API network error: {exc.reason}") from exc
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"API response is not valid JSON: {exc}") from exc
+        raise RuntimeError(f"API request failed: {last_error}") from last_error
 
     # ----------------------------------------------------------- normalization
     def normalize_item(self, item: dict, keyword: str,
