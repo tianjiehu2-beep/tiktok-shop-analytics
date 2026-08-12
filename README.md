@@ -73,7 +73,19 @@ python main.py schedule --once --demo        # 立即执行一次（测试）
 python main.py schedule --time 08:30 --demo  # 每天 08:30 自动执行
 ```
 
+## 在线看板（GitHub Pages，可选）
+仓库内置 GitHub Actions 工作流（`.github/workflows/daily-report.yml`）：每天自动生成数据与
+HTML 看板并部署到 GitHub Pages，简历里可以放一个可点击的在线链接。
+
+启用步骤（一次性）：
+1. 仓库 Settings → Pages → Source 选择 **GitHub Actions**。
+2. 推送后到 Actions 页面手动运行一次 `daily-report` 验证。
+3. 有第三方 API Key 时，在仓库 Settings → Secrets and variables → Actions 添加
+   `TTSHOP_API_KEY`（存在则自动用真实数据，否则回退 demo 数据）。
+看板地址形如：`https://<用户名>.github.io/<仓库名>/index.html`。
+
 ## 定时调度（每日自动跑数据管道）
+
 ```bash
 # 前台方式（保持窗口开着）
 python main.py schedule --time 08:30 --demo
