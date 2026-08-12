@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from .models import Product, utc_now
+from .models import Influencer, KeywordTrend, Product, utc_now
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
@@ -51,6 +52,52 @@ CREATE TABLE IF NOT EXISTS analysis_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_product ON price_snapshots (product_id, captured_at);
 CREATE INDEX IF NOT EXISTS idx_analysis_product ON analysis_snapshots (product_id, analyzed_at);
+
+CREATE TABLE IF NOT EXISTS influencers (
+    user_id                 TEXT PRIMARY KEY,
+    nick_name               TEXT,
+    avatar                  TEXT,
+    signature               TEXT,
+    region                  TEXT,
+    followers_cnt           INTEGER NOT NULL DEFAULT 0,
+    followers_30d_cnt       INTEGER NOT NULL DEFAULT 0,
+    post_video_cnt          INTEGER NOT NULL DEFAULT 0,
+    digg_cnt                INTEGER NOT NULL DEFAULT 0,
+    likes_cnt               INTEGER NOT NULL DEFAULT 0,
+    interaction_rate        REAL NOT NULL DEFAULT 0,
+    ec_score                REAL NOT NULL DEFAULT 0,
+    sale_cnt                INTEGER NOT NULL DEFAULT 0,
+    sale_gmv_amt            REAL NOT NULL DEFAULT 0,
+    sale_gmv_30d_amt        REAL NOT NULL DEFAULT 0,
+    product_cnt             INTEGER NOT NULL DEFAULT 0,
+    live_cnt                INTEGER NOT NULL DEFAULT 0,
+    per_video_views_avg_7d  REAL NOT NULL DEFAULT 0,
+    category                TEXT,
+    first_seen_at           TEXT NOT NULL,
+    last_seen_at            TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS keyword_trends (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword     TEXT NOT NULL,
+    video_num   INTEGER NOT NULL DEFAULT 0,
+    popularity  INTEGER NOT NULL DEFAULT 0,
+    trend_json  TEXT,
+    region      TEXT,
+    source      TEXT,
+    captured_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS product_influencers (
+    product_id    TEXT NOT NULL,
+    user_id       TEXT NOT NULL,
+    nick_name     TEXT,
+    followers_cnt INTEGER NOT NULL DEFAULT 0,
+    per_sale_cnt  INTEGER NOT NULL DEFAULT 0,
+    per_gmv_amt   REAL NOT NULL DEFAULT 0,
+    captured_at   TEXT NOT NULL,
+    PRIMARY KEY (product_id, user_id, captured_at)
+);
 """
 
 
@@ -132,6 +179,96 @@ class Database:
                 "INSERT INTO price_snapshots (product_id, price, sold_count, captured_at) VALUES (?,?,?,?)",
                 (product_id, price, sold_count, captured_at),
             )
+
+    def upsert_influencers(self, influencers: list[Influencer]) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for inf in influencers:
+                conn.execute(
+                    """INSERT INTO influencers
+                       (user_id, nick_name, avatar, signature, region, followers_cnt,
+                        followers_30d_cnt, post_video_cnt, digg_cnt, likes_cnt,
+                        interaction_rate, ec_score, sale_cnt, sale_gmv_amt, sale_gmv_30d_amt,
+                        product_cnt, live_cnt, per_video_views_avg_7d, category,
+                        first_seen_at, last_seen_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(user_id) DO UPDATE SET
+                        nick_name=excluded.nick_name, avatar=excluded.avatar,
+                        signature=excluded.signature, region=excluded.region,
+                        followers_cnt=excluded.followers_cnt,
+                        followers_30d_cnt=excluded.followers_30d_cnt,
+                        post_video_cnt=excluded.post_video_cnt,
+                        digg_cnt=excluded.digg_cnt, likes_cnt=excluded.likes_cnt,
+                        interaction_rate=excluded.interaction_rate, ec_score=excluded.ec_score,
+                        sale_cnt=excluded.sale_cnt, sale_gmv_amt=excluded.sale_gmv_amt,
+                        sale_gmv_30d_amt=excluded.sale_gmv_30d_amt,
+                        product_cnt=excluded.product_cnt, live_cnt=excluded.live_cnt,
+                        per_video_views_avg_7d=excluded.per_video_views_avg_7d,
+                        category=excluded.category, last_seen_at=excluded.last_seen_at""",
+                    (inf.user_id, inf.nick_name, inf.avatar, inf.signature, inf.region,
+                     inf.followers_cnt, inf.followers_30d_cnt, inf.post_video_cnt,
+                     inf.digg_cnt, inf.likes_cnt, inf.interaction_rate, inf.ec_score,
+                     inf.sale_cnt, inf.sale_gmv_amt, inf.sale_gmv_30d_amt,
+                     inf.product_cnt, inf.live_cnt, inf.per_video_views_avg_7d,
+                     inf.category, inf.first_seen_at or now, now),
+                )
+                written += 1
+        return written
+
+    def upsert_keyword_trends(self, trends: list[KeywordTrend]) -> int:
+        written = 0
+        with self.conn() as conn:
+            for t in trends:
+                conn.execute(
+                    """INSERT INTO keyword_trends (keyword, video_num, popularity, trend_json, region, source, captured_at)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (t.keyword, t.video_num, t.popularity,
+                     json.dumps(t.trend or [], ensure_ascii=False),
+                     t.region, t.source, t.captured_at),
+                )
+                written += 1
+        return written
+
+    def save_product_influencers(self, rows: list[dict]) -> int:
+        """rows: product_id, user_id, nick_name, followers_cnt, per_sale_cnt, per_gmv_amt"""
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for r in rows:
+                conn.execute(
+                    """INSERT INTO product_influencers
+                       (product_id, user_id, nick_name, followers_cnt, per_sale_cnt, per_gmv_amt, captured_at)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (r["product_id"], r["user_id"], r.get("nick_name", ""),
+                     r.get("followers_cnt") or 0, r.get("per_sale_cnt") or 0,
+                     r.get("per_gmv_amt") or 0.0, now),
+                )
+                written += 1
+        return written
+
+    def top_influencers(self, limit: int = 20) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT * FROM influencers ORDER BY sale_gmv_amt DESC LIMIT ?""", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_keyword_trends(self, source: str = "ranking", limit: int = 20) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT * FROM keyword_trends WHERE source = ?
+                   ORDER BY id DESC LIMIT ?""", (source, limit)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def product_influencers(self, product_id: str, limit: int = 5) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT * FROM product_influencers WHERE product_id = ?
+                   ORDER BY per_sale_cnt DESC LIMIT ?""", (product_id, limit)
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def products(self, category: str | None = None, limit: int | None = None) -> list[dict]:
         sql = "SELECT * FROM products WHERE is_active = 1"

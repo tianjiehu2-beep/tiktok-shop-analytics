@@ -31,7 +31,9 @@ jobs:
         run: |
           if [ -n "${{ secrets.TTSHOP_API_KEY }}" ]; then
             python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}"
-            python main.py run --source api --keyword "yoga mat" --limit 30 --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py run --source api --keyword "yoga mat" --limit 30 --with-influencers --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py influencers --sort followers --pages 2 --limit 20 --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py keywords --tab all --limit 15 --api-key "${{ secrets.TTSHOP_API_KEY }}"
           else
             python main.py run --source demo --products 300
           fi

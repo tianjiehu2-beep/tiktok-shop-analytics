@@ -121,6 +121,8 @@ def cmd_run(args, settings: Settings) -> int:
             min_commission=getattr(args, "min_commission", None), enrich=getattr(args, "enrich", False),
             language=getattr(args, "language", "en-US"),
         )
+        if source == "api" and getattr(args, "with_influencers", False):
+            _attach_product_influencers(db, settings, args)
     except ImportError:
         print("未安装 playwright，无法使用 scraper 数据源。")
         print("请先执行: pip install playwright && playwright install chromium")
@@ -136,6 +138,76 @@ def cmd_run(args, settings: Settings) -> int:
     print(f"  Top 商品 CSV: {report_path.parent / 'top_products.csv'}")
     print(f"  数据规模: {db.stats()}")
     print("=" * 60)
+    return 0
+
+
+def _api_source(args, settings: Settings):
+    from ttshop.sources import ApiSource
+
+    return ApiSource(settings=settings, provider=args.provider,
+                     api_base=args.api_base, api_key=args.api_key,
+                     language=getattr(args, "language", "en-US"))
+
+
+def _attach_product_influencers(db, settings, args) -> None:
+    """对本次采集的 Top 商品拉取带货达人，写入 product_influencers 表。"""
+    try:
+        source = _api_source(args, settings)
+        top = db.products(limit=getattr(args, "influencer_products", 5) or 5)
+        saved = 0
+        for product in top:
+            rows = source.fetch_product_influencers(product["product_id"],
+                                                    limit=getattr(args, "influencer_limit", 3) or 3)
+            if rows:
+                saved += db.save_product_influencers(rows)
+        print(f"商品-达人关联写入 {saved} 条")
+    except RuntimeError as exc:
+        print(f"商品关联达人采集失败: {exc}")
+
+
+def cmd_influencers(args, settings: Settings) -> int:
+    source = _api_source(args, settings)
+    db = _get_db(args, settings)
+    if args.rank:
+        influencers = source.fetch_influencer_ranklist(
+            category_id=args.category_id, date=args.date, period=args.period,
+            rank_field=args.rank_field, limit=args.limit)
+        written = db.upsert_influencers(influencers)
+        print(f"达人榜采集完成: {len(influencers)} 条（{args.period}榜, {args.rank_field}），写入 {written} 条")
+    else:
+        influencers = source.fetch_influencers(
+            category_id=args.category_id, sort=args.sort, pages=args.pages,
+            min_followers=args.min_followers, min_gmv=args.min_gmv,
+            limit=args.limit)
+        written = db.upsert_influencers(influencers)
+        print(f"达人列表采集完成: {len(influencers)} 条（按{args.sort}排序, 仅带货达人），写入 {written} 条")
+    print()
+    print("Top 带货达人（按带货GMV）:")
+    for i, inf in enumerate(db.top_influencers(limit=10), 1):
+        print(f"{i:>2}. {inf['nick_name'][:28]:<30} 粉丝 {inf['followers_cnt']:>10,}  "
+              f"带货 {inf['sale_cnt']:>8,}  GMV ${inf['sale_gmv_amt']:>12,.0f}  "
+              f"EC分 {inf['ec_score']}")
+    print()
+    print("看商品由谁在带: python main.py run --source api --keyword \"<词>\" --with-influencers")
+    return 0
+
+
+def cmd_keywords(args, settings: Settings) -> int:
+    source = _api_source(args, settings)
+    db = _get_db(args, settings)
+    if args.keyword:
+        trends = source.fetch_keyword_inspiration(args.keyword, count=args.limit)
+        written = db.upsert_keyword_trends(trends)
+        print(f"关键词灵感采集完成: {len(trends)} 条（围绕 {args.keyword!r}），写入 {written} 条")
+    else:
+        trends = source.fetch_keyword_trends(tab=args.tab, count=args.limit)
+        written = db.upsert_keyword_trends(trends)
+        print(f"趋势搜索词榜采集完成: {len(trends)} 条（tab={args.tab}），写入 {written} 条")
+    print()
+    print("飙升关键词（按热度）:")
+    for i, t in enumerate(db.latest_keyword_trends(source="inspiration" if args.keyword else "ranking", limit=15), 1):
+        trend = (t.get("trend_json") or "[]")
+        print(f"{i:>2}. {t['keyword'][:34]:<36} 视频数 {t['video_num']:>10,}  热度 {t['popularity']:>12,}")
     return 0
 
 
@@ -253,6 +325,32 @@ def main(argv: list[str] | None = None) -> int:
     _add_source_args(p_categories)
     p_categories.set_defaults(func=cmd_categories)
 
+    p_influencers = sub.add_parser("influencers", help="采集带货达人（列表/榜单，EchoTik）")
+    p_influencers.add_argument("--rank", action="store_true", help="达人榜单模式（默认列表模式）")
+    p_influencers.add_argument("--period", choices=["day", "week", "month"], default="day", help="榜单周期（榜单模式）")
+    p_influencers.add_argument("--rank-field", choices=["sales", "followers"], default="sales", help="榜单排序字段")
+    p_influencers.add_argument("--date", default=None, help="榜单日期 yyyy-MM-dd（默认今天）")
+    p_influencers.add_argument("--sort", default="followers",
+                               choices=["followers", "followers30d", "posts", "views", "interaction"],
+                               help="列表排序（列表模式）")
+    p_influencers.add_argument("--pages", type=int, default=1, help="列表翻页数（每页10条）")
+    p_influencers.add_argument("--min-followers", type=int, default=None, help="最低粉丝数")
+    p_influencers.add_argument("--min-gmv", type=float, default=None, help="最低带货GMV")
+    p_influencers.add_argument("--category-id", default=None, help="按类目过滤（用 categories 命令查）")
+    p_influencers.add_argument("--limit", type=int, default=None)
+    p_influencers.add_argument("--language", default="en-US")
+    _add_source_args(p_influencers)
+    p_influencers.set_defaults(func=cmd_influencers)
+
+    p_keywords = sub.add_parser("keywords", help="采集飙升关键词/关键词灵感（EchoTik）")
+    p_keywords.add_argument("--tab", choices=["all", "Fashion", "Food", "Sports", "Tourism", "Gaming", "Science"],
+                            default="all", help="趋势榜分类")
+    p_keywords.add_argument("--keyword", default=None, help="关键词灵感：围绕该词找相关热词")
+    p_keywords.add_argument("--limit", type=int, default=20)
+    p_keywords.add_argument("--language", default="en-US")
+    _add_source_args(p_keywords)
+    p_keywords.set_defaults(func=cmd_keywords)
+
     p_ranklist = sub.add_parser("ranklist", help="采集商品榜单（EchoTik，日/周/月榜）")
     p_ranklist.add_argument("--category-id", default=None, help="类目ID（用 categories 命令查）")
     p_ranklist.add_argument("--date", default=None, help="榜单日期 yyyy-MM-dd，默认今天")
@@ -286,6 +384,9 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--max-price", type=float, default=None, help="筛选最高均价（美元）")
     p_run.add_argument("--min-commission", type=float, default=None, help="筛选最低佣金率")
     p_run.add_argument("--enrich", action="store_true", help="采集后调用商品详情接口补全评分/评论/GMV")
+    p_run.add_argument("--with-influencers", action="store_true", help="采集后拉取Top商品的带货达人（人-货关联）")
+    p_run.add_argument("--influencer-products", type=int, default=5, help="拉取关联达人的Top商品数")
+    p_run.add_argument("--influencer-limit", type=int, default=3, help="每个商品的关联达人条数")
     p_run.add_argument("--language", default="en-US", help="类目语言（默认 en-US）")
     p_run.add_argument("--products", type=int, default=200)
     p_run.add_argument("--seed", type=int, default=None)
@@ -306,6 +407,9 @@ def main(argv: list[str] | None = None) -> int:
     p_schedule.add_argument("--max-price", type=float, default=None)
     p_schedule.add_argument("--min-commission", type=float, default=None)
     p_schedule.add_argument("--enrich", action="store_true")
+    p_schedule.add_argument("--with-influencers", action="store_true")
+    p_schedule.add_argument("--influencer-products", type=int, default=5)
+    p_schedule.add_argument("--influencer-limit", type=int, default=3)
     p_schedule.add_argument("--language", default="en-US")
     p_schedule.add_argument("--products", type=int, default=200)
     p_schedule.add_argument("--limit", type=int, default=None)
@@ -313,6 +417,12 @@ def main(argv: list[str] | None = None) -> int:
     p_schedule.set_defaults(func=cmd_schedule)
 
     args = parser.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
     settings = Settings()
     return args.func(args, settings)

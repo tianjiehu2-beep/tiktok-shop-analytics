@@ -25,7 +25,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from ..config import Settings
-from ..models import Product
+from ..models import Influencer, KeywordTrend, Product
 from .base import DataSource, SourceResult
 from .fields import first_key, parse_count, parse_price, parse_rating
 
@@ -46,6 +46,17 @@ ECHOTIK_RANK_FIELDS = {"sales": 1, "influencer": 2}
 ECHOTIK_RANK_PERIODS = {"day": 1, "week": 2, "month": 3}
 ECHOTIK_CATEGORY_LEVELS = [("l3", "category_l3_id"), ("l2", "category_l2_id")]
 
+# EchoTik influencer/list sort fields
+ECHOTIK_INFLUENCER_SORTS = {
+    "followers": 1,    # total_followers_cnt
+    "followers30d": 2, # total_followers_30d_cnt
+    "posts": 3,        # total_post_video_cnt
+    "views": 4,        # per_views_avg_cnt
+    "interaction": 5,  # interaction_rate
+}
+ECHOTIK_INFLUENCER_RANK_FIELDS = {"followers": 1, "sales": 2}
+ECHOTIK_KEYWORD_TABS = ["all", "Fashion", "Food", "Sports", "Tourism", "Gaming", "Science"]
+
 
 @dataclass(frozen=True)
 class ProviderConfig:
@@ -59,6 +70,11 @@ class ProviderConfig:
     category_path: str = ""          # level-1 category list
     category_l2_path: str = ""       # level-2 category list
     category_l3_path: str = ""       # level-3 category list
+    influencer_list_path: str = ""   # influencer list endpoint
+    influencer_ranklist_path: str = ""  # influencer ranklist endpoint
+    product_influencer_path: str = ""   # product -> influencer list endpoint
+    keyword_ranking_path: str = ""      # trending keyword ranking endpoint
+    keyword_inspiration_path: str = ""  # keyword inspiration endpoint
     items_path: str = "data.list"    # dotted path to product list in response
     auth_header: str = "Authorization"   # empty -> pass api_key as query param
     auth_prefix: str = "Bearer "
@@ -90,6 +106,11 @@ PROVIDERS: dict[str, ProviderConfig] = {
         category_path="/api/v3/echotik/category/l1",
         category_l2_path="/api/v3/echotik/category/l2",
         category_l3_path="/api/v3/echotik/category/l3",
+        influencer_list_path="/api/v3/echotik/influencer/list",
+        influencer_ranklist_path="/api/v3/echotik/influencer/ranklist",
+        product_influencer_path="/api/v3/echotik/product/influencer/list",
+        keyword_ranking_path="/api/v3/realtime/trending/keyword/ranking",
+        keyword_inspiration_path="/api/v3/realtime/inspiration/keyword",
         items_path="data.list",
         auth_prefix="Basic ",   # api_key = base64(username:password)
         method="GET",
@@ -414,6 +435,201 @@ class ApiSource(DataSource):
             chain.append(names[cur])
             cur = parents.get(cur, "")
         return " > ".join(reversed(chain))
+
+    # ------------------------------------------------------------ influencers
+    def fetch_influencers(self, category_id: str | None = None, sort: str = "followers",
+                          pages: int = 1, min_followers: int | None = None,
+                          min_gmv: float | None = None, sales_flag: int = 3,
+                          limit: int | None = None) -> list[Influencer]:
+        """Fetch influencer list (EchoTik influencer/list) with pagination."""
+        if not self.api_key:
+            raise RuntimeError("API key missing: pass --api-key or set TTSHOP_API_KEY")
+        config = self._provider_config()
+        if not config.influencer_list_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持达人接口（目前仅 EchoTik 支持）")
+        base = self.api_base or config.base_url
+        sort_num = ECHOTIK_INFLUENCER_SORTS.get((sort or "followers").lower(), 1)
+        collected: list[Influencer] = []
+        for page in range(1, max(1, int(pages or 1)) + 1):
+            params = {
+                "region": self.region,
+                "page_num": page,
+                "page_size": 10,
+                "influencer_sort_field_v2": sort_num,
+                "sort_type": 1,
+                "sales_flag": sales_flag,   # >0 代表带货
+            }
+            if category_id:
+                tree = self._ensure_categories()
+                params[self._category_level_param(tree, category_id)] = category_id
+            if min_followers:
+                params["min_total_followers_cnt"] = min_followers
+            if min_gmv:
+                params["min_total_sale_gmv_amt"] = min_gmv
+            url = base + config.influencer_list_path + "?" + urlencode(params)
+            payload = self._request_json(url, config)
+            items = _as_list(payload, config.items_path)
+            if not items:
+                break
+            for item in items:
+                inf = self.normalize_influencer(item)
+                if inf:
+                    collected.append(inf)
+            if limit and len(collected) >= limit:
+                break
+        return collected[:limit] if limit else collected
+
+    def fetch_influencer_ranklist(self, category_id: str | None = None,
+                                  date: str | None = None, period: str = "day",
+                                  rank_field: str = "sales",
+                                  limit: int | None = None) -> list[Influencer]:
+        """Fetch influencer ranklist (EchoTik influencer/ranklist)."""
+        if not self.api_key:
+            raise RuntimeError("API key missing: pass --api-key or set TTSHOP_API_KEY")
+        config = self._provider_config()
+        if not config.influencer_ranklist_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持达人榜单（目前仅 EchoTik 支持）")
+        base = self.api_base or config.base_url
+        params = {
+            "date": date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "region": self.region,
+            "rank_type": ECHOTIK_RANK_PERIODS.get((period or "day").lower(), 1),
+            "influencer_rank_field": ECHOTIK_INFLUENCER_RANK_FIELDS.get((rank_field or "sales").lower(), 2),
+            "page_num": 1,
+            "page_size": min(limit or 10, 10),
+        }
+        if category_id:
+            tree = self._ensure_categories()
+            params[self._category_level_param(tree, category_id)] = category_id
+        url = base + config.influencer_ranklist_path + "?" + urlencode(params)
+        payload = self._request_json(url, config)
+        items = _as_list(payload, config.items_path)
+        influencers = []
+        for item in items:
+            inf = self.normalize_influencer(item)
+            if inf:
+                influencers.append(inf)
+        return influencers[:limit] if limit else influencers
+
+    def fetch_product_influencers(self, product_id: str,
+                                  limit: int = 5) -> list[dict]:
+        """Fetch influencers who carry a product (EchoTik product/influencer/list)."""
+        if not self.api_key:
+            raise RuntimeError("API key missing: pass --api-key or set TTSHOP_API_KEY")
+        config = self._provider_config()
+        if not config.product_influencer_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持商品关联达人（目前仅 EchoTik 支持）")
+        base = self.api_base or config.base_url
+        params = {
+            "product_id": product_id,
+            "product_influencer_sort_field": 3,   # per_product_ifl_sale_cnt
+            "sort_type": 1,
+            "page_num": 1,
+            "page_size": min(limit or 5, 10),
+        }
+        url = base + config.product_influencer_path + "?" + urlencode(params)
+        payload = self._request_json(url, config)
+        items = _as_list(payload, config.items_path)
+        rows = []
+        for it in items[:limit]:
+            rows.append({
+                "product_id": str(it.get("product_id") or product_id),
+                "user_id": str(it.get("user_id") or it.get("unique_id") or ""),
+                "nick_name": str(it.get("nick_name") or ""),
+                "followers_cnt": parse_count(it.get("total_followers_cnt")),
+                "per_sale_cnt": parse_count(it.get("per_product_ifl_sale_cnt")),
+                "per_gmv_amt": parse_price(it.get("per_product_ifl_gmv_amt")),
+            })
+        return rows
+
+    def fetch_keyword_trends(self, tab: str = "all",
+                             count: int = 20) -> list[KeywordTrend]:
+        """Fetch trending keyword ranking (realtime/trending/keyword/ranking)."""
+        if not self.api_key:
+            raise RuntimeError("API key missing: pass --api-key or set TTSHOP_API_KEY")
+        config = self._provider_config()
+        if not config.keyword_ranking_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持关键词趋势（目前仅 EchoTik 支持）")
+        base = self.api_base or config.base_url
+        tab = tab if tab in ECHOTIK_KEYWORD_TABS else "all"
+        url = base + config.keyword_ranking_path + "?" + urlencode({
+            "tab": tab, "region": self.region, "count": min(count or 20, 50)})
+        payload = self._request_json(url, config)
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        items = data.get("inspiration_list") or []
+        trends = []
+        for it in items:
+            keyword = str(it.get("query_text") or "").strip()
+            if not keyword:
+                continue
+            trends.append(KeywordTrend(
+                keyword=keyword,
+                video_num=parse_count(it.get("video_num")),
+                popularity=parse_count(it.get("popularity_v2") or it.get("popularity")),
+                trend=it.get("trending_seq_v2") or it.get("trending_seq") or [],
+                region=self.region,
+                source="ranking",
+            ))
+        return trends[:count]
+
+    def fetch_keyword_inspiration(self, keyword: str,
+                                  count: int = 20) -> list[KeywordTrend]:
+        """Fetch keyword inspiration (realtime/inspiration/keyword)."""
+        if not self.api_key:
+            raise RuntimeError("API key missing: pass --api-key or set TTSHOP_API_KEY")
+        config = self._provider_config()
+        if not config.keyword_inspiration_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持关键词灵感（目前仅 EchoTik 支持）")
+        base = self.api_base or config.base_url
+        url = base + config.keyword_inspiration_path + "?" + urlencode({
+            "keyword": keyword, "region": self.region, "count": min(count or 20, 50)})
+        payload = self._request_json(url, config)
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        items = data.get("inspiration_list") or []
+        trends = []
+        for it in items:
+            kw = str(it.get("query_text") or "").strip()
+            if not kw:
+                continue
+            trends.append(KeywordTrend(
+                keyword=kw,
+                video_num=parse_count(it.get("video_num")),
+                popularity=parse_count(it.get("popularity_v2") or it.get("popularity")),
+                trend=it.get("trending_seq_v2") or it.get("trending_seq") or [],
+                region=self.region,
+                source="inspiration",
+            ))
+        return trends[:count]
+
+    def normalize_influencer(self, item: dict) -> Influencer | None:
+        user_id = str(first_key(item, ["user_id", "userId", "unique_id"]) or "").strip()
+        if not user_id:
+            return None
+        try:
+            return Influencer(
+                user_id=user_id,
+                nick_name=str(item.get("nick_name") or ""),
+                avatar=str(item.get("avatar") or ""),
+                signature=str(item.get("signature") or ""),
+                region=str(item.get("region") or self.region),
+                followers_cnt=parse_count(item.get("total_followers_cnt")),
+                followers_30d_cnt=parse_count(item.get("total_followers_30d_cnt")),
+                post_video_cnt=parse_count(item.get("total_post_video_cnt")),
+                digg_cnt=parse_count(item.get("total_digg_cnt")),
+                likes_cnt=parse_count(item.get("total_likes_cnt")),
+                interaction_rate=parse_price(item.get("interaction_rate")),
+                ec_score=parse_price(item.get("ec_score")),
+                sale_cnt=parse_count(item.get("total_sale_cnt")),
+                sale_gmv_amt=parse_price(item.get("total_sale_gmv_amt")),
+                sale_gmv_30d_amt=parse_price(item.get("total_sale_gmv_30d_amt")),
+                product_cnt=parse_count(item.get("total_product_cnt")),
+                live_cnt=parse_count(item.get("total_live_cnt")),
+                per_video_views_avg_7d=parse_price(
+                    item.get("per_video_product_views_avg_7d_cnt")),
+                category=str(item.get("category") or ""),
+            )
+        except (TypeError, ValueError):
+            return None
 
     # ------------------------------------------------------------ HTTP helpers
     def _provider_config(self) -> ProviderConfig:

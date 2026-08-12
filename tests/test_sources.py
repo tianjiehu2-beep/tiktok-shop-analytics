@@ -313,3 +313,112 @@ class ApiSourceEchoTikAdvancedTest(unittest.TestCase):
         self.assertEqual(enriched[0].review_count, 300)
         self.assertEqual(enriched[0].gmv_total, 5000.0)
         self.assertEqual(enriched[0].influencer_cnt, 12)
+
+
+class InfluencerKeywordTest(unittest.TestCase):
+    def setUp(self):
+        self.source = ApiSource(settings=Settings(api_key="secret"), provider="echotik")
+
+    def test_normalize_influencer(self):
+        item = {
+            "user_id": "7202723462921962539",
+            "nick_name": "Iselyta",
+            "total_followers_cnt": 2706157,
+            "total_post_video_cnt": 3670,
+            "total_sale_cnt": 18999,
+            "total_sale_gmv_amt": 683392.7,
+            "ec_score": 8.15,
+            "interaction_rate": 0.03,
+            "per_video_product_views_avg_7d_cnt": 2693.86,
+            "region": "US",
+        }
+        inf = self.source.normalize_influencer(item)
+        self.assertIsNotNone(inf)
+        self.assertEqual(inf.user_id, "7202723462921962539")
+        self.assertEqual(inf.followers_cnt, 2706157)
+        self.assertEqual(inf.sale_cnt, 18999)
+        self.assertEqual(inf.sale_gmv_amt, 683392.7)
+        self.assertEqual(inf.ec_score, 8.15)
+        self.assertEqual(inf.per_video_views_avg_7d, 2693.86)
+
+    def test_normalize_influencer_missing_id(self):
+        self.assertIsNone(self.source.normalize_influencer({"nick_name": "x"}))
+
+    def test_fetch_keyword_trends(self):
+        captured = {}
+        def fake_request(url, config, body=None):
+            captured["url"] = url
+            return {"data": {"inspiration_list": [
+                {"query_text": "ford pinto car", "video_num": 0,
+                 "popularity_v2": 60665062, "trending_seq_v2": [0, 7400, 83108]},
+                {"query_text": "sydney towel", "video_num": 1182,
+                 "popularity_v2": 53974598, "trending_seq_v2": [100, 200, 300]},
+            ]}}
+        self.source._request_json = fake_request
+        trends = self.source.fetch_keyword_trends(tab="all", count=10)
+        self.assertIn("/realtime/trending/keyword/ranking", captured["url"])
+        self.assertIn("tab=all", captured["url"])
+        self.assertEqual(len(trends), 2)
+        self.assertEqual(trends[0].keyword, "ford pinto car")
+        self.assertEqual(trends[0].video_num, 0)
+        self.assertEqual(trends[0].popularity, 60665062)
+        self.assertEqual(trends[0].trend, [0, 7400, 83108])
+        self.assertEqual(trends[0].source, "ranking")
+
+    def test_fetch_influencers_url(self):
+        captured = {}
+        def fake_request(url, config, body=None):
+            captured["url"] = url
+            return {"data": [
+                {"user_id": "U1", "nick_name": "A", "total_followers_cnt": 1000,
+                 "total_sale_cnt": 10, "total_sale_gmv_amt": 100.0},
+            ]}
+        self.source._request_json = fake_request
+        result = self.source.fetch_influencers(pages=1, limit=5)
+        url = captured["url"]
+        self.assertIn("/api/v3/echotik/influencer/list", url)
+        self.assertIn("influencer_sort_field_v2=1", url)
+        self.assertIn("sales_flag=3", url)
+        self.assertEqual(result[0].user_id, "U1")
+
+    def test_fetch_product_influencers(self):
+        def fake_request(url, config, body=None):
+            return {"data": [
+                {"product_id": "P1", "user_id": "U1", "nick_name": "Haley",
+                 "total_followers_cnt": 74592, "per_product_ifl_sale_cnt": 174907,
+                 "per_product_ifl_gmv_amt": 1922213},
+            ]}
+        self.source._request_json = fake_request
+        rows = self.source.fetch_product_influencers("P1", limit=5)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["per_sale_cnt"], 174907)
+        self.assertEqual(rows[0]["per_gmv_amt"], 1922213)
+
+
+class DbNewTablesTest(unittest.TestCase):
+    def test_influencer_keyword_roundtrip(self):
+        tmp = Path("data/test_extra.db")
+        tmp.parent.mkdir(exist_ok=True)
+        if tmp.exists():
+            tmp.unlink()
+        db = Database(tmp)
+        db.init_schema()
+        from ttshop.models import Influencer, KeywordTrend
+        inf = Influencer(user_id="U1", nick_name="Tester", followers_cnt=100, sale_gmv_amt=99.9)
+        self.assertEqual(db.upsert_influencers([inf]), 1)
+        rows = db.top_influencers(limit=5)
+        self.assertEqual(rows[0]["user_id"], "U1")
+        self.assertEqual(rows[0]["followers_cnt"], 100)
+
+        kw = KeywordTrend(keyword="yoga mat", video_num=10, popularity=99, trend=[1, 2, 3])
+        self.assertEqual(db.upsert_keyword_trends([kw]), 1)
+        kws = db.latest_keyword_trends(source="ranking", limit=5)
+        self.assertEqual(kws[0]["keyword"], "yoga mat")
+        self.assertIn("2", kws[0]["trend_json"])
+
+        rows = [{"product_id": "P1", "user_id": "U1", "nick_name": "T", "per_sale_cnt": 5}]
+        self.assertEqual(db.save_product_influencers(rows), 1)
+        links = db.product_influencers("P1", limit=5)
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["per_sale_cnt"], 5)
+        tmp.unlink()

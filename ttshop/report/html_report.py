@@ -150,6 +150,32 @@ def _table_rows(analysis: list[dict], symbol: str) -> str:
     return "\n".join(rows)
 
 
+def _kw_spark(trend_json) -> str:
+    """Render a small 7-day trend sparkline from a JSON array."""
+    import json as _json
+    try:
+        values = [float(v) for v in _json.loads(trend_json or "[]") if v]
+    except (TypeError, ValueError, _json.JSONDecodeError):
+        return ""
+    if len(values) < 2 or max(values) <= 0:
+        return ""
+    w, h = 96, 24
+    vmax = max(values) or 1
+    vmin = min(values)
+    span = max(vmax - vmin, 1)
+    pts = []
+    n = len(values)
+    for i, v in enumerate(values):
+        x = 2 + (w - 4) * i / (n - 1)
+        y = h - 3 - (h - 6) * (v - vmin) / span
+        pts.append(f"{x:.1f},{y:.1f}")
+    color = "#10b981" if values[-1] >= values[0] else "#ef4444"
+    return (f"<svg width='{w}' height='{h}' viewBox='0 0 {w} {h}' "
+            f"xmlns='http://www.w3.org/2000/svg'>"
+            f"<polyline points='{' '.join(pts)}' fill='none' stroke='{color}' "
+            f"stroke-width='2' stroke-linejoin='round'/></svg>")
+
+
 def _trend_block(trends: list[dict]) -> str:
     if not trends:
         return "<p>暂无趋势数据（重复执行采集后会出现销量趋势）</p>"
@@ -244,6 +270,24 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
     table_rows = _table_rows(analysis[:20], symbol)
     trend_html = _trend_block(trends)
 
+    influencers = db.top_influencers(limit=10)
+    keywords = db.latest_keyword_trends(source="ranking", limit=10)
+    ifl_rows = "\n".join(
+        f"<tr><td>{i}</td><td>{_esc(r['nick_name'])}</td>"
+        f"<td class='num'>{r['followers_cnt']:,}</td>"
+        f"<td class='num'>{r['sale_cnt']:,}</td>"
+        f"<td class='num'>{_money(r['sale_gmv_amt'], symbol)}</td>"
+        f"<td class='num'>{r['ec_score']}</td></tr>"
+        for i, r in enumerate(influencers, 1)
+    ) if influencers else "<tr><td colspan='5'>暂无达人数据（运行 python main.py influencers --rank）</td></tr>"
+    kw_rows = "\n".join(
+        f"<tr><td>{i}</td><td>{_esc(r['keyword'])}</td>"
+        f"<td class='num'>{r['video_num']:,}</td>"
+        f"<td class='num'>{r['popularity']:,}</td>"
+        f"<td>{_kw_spark(r.get('trend_json'))}</td></tr>"
+        for i, r in enumerate(keywords, 1)
+    ) if keywords else "<tr><td colspan='4'>暂无关键词数据（运行 python main.py keywords）</td></tr>"
+
     body = f"""
 <header>
   <h1>TikTok Shop 爆品监测与选品分析看板</h1>
@@ -270,6 +314,21 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
     <tr><th>类目</th><th class="num">商品数</th><th class="num">均价</th><th class="num">平均销量</th><th class="num">平均评分</th><th class="num">高潜商品</th></tr>
     {cat_table}
   </table></div>
+</section>
+
+<section class="cols2">
+  <div class="panel"><h2>带货达人榜（按GMV）</h2>
+    <div class="scroll"><table>
+      <tr><th>#</th><th>达人</th><th class="num">粉丝</th><th class="num">带货量</th><th class="num">带货GMV</th><th class="num">EC分</th></tr>
+      {ifl_rows}
+    </table></div>
+  </div>
+  <div class="panel"><h2>飙升关键词（趋势榜）</h2>
+    <div class="scroll"><table>
+      <tr><th>#</th><th>关键词</th><th class="num">视频数</th><th class="num">热度</th><th>7天趋势</th></tr>
+      {kw_rows}
+    </table></div>
+  </div>
 </section>
 
 <section class="panel">

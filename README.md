@@ -100,11 +100,24 @@ python main.py run --source api --category-id 600001 --pages 3 --min-sales 1000 
 # 5) 采集商品榜单（日/周/月榜）
 python main.py ranklist --category-id 603084 --period day --limit 10
 python main.py ranklist --period week --limit 10
+
+# 6) 达人数据（人-货闭环）：带货达人榜 / 达人列表 / 商品关联达人
+python main.py influencers --rank --period day --limit 10      # 达人带货榜（按销量）
+python main.py influencers --sort followers --min-gmv 1000     # 高带货GMV达人列表
+python main.py run --source api --keyword "yoga mat" --with-influencers   # 商品由谁在带
+
+# 7) 关键词数据：趋势搜索词榜 / 关键词灵感（发现选题与选品方向）
+python main.py keywords --tab all --limit 20                  # 飙升关键词
+python main.py keywords --keyword yoga --limit 20             # 围绕 yoga 的相关热词
 ```
 
-支持的数据字段（EchoTik `product/list` / `product/detail`）：
-售价区间、总销量、近 7 天/30 天销量、总 GMV、评分、评论数、佣金率、带货达人数、
-带货视频数、是否包邮/爆款/全托管、三级类目路径等；看板表格与 CSV 均已包含。
+支持的数据字段：
+- 商品（`product/list` / `product/detail`）：售价区间、总销量、近 7 天/30 天销量、
+  总 GMV、评分、评论数、佣金率、带货达人数、带货视频数、是否包邮/爆款/全托管、三级类目路径。
+- 达人（`influencer/list` / `influencer/ranklist` / `product/influencer/list`）：粉丝数、
+  视频数、互动率、EC分、带货量/GMV、平均带货视频播放、商品-达人带货关系。
+- 关键词（`trending/keyword/ranking` / `inspiration/keyword`）：热词、视频数、热度、7天趋势。
+看板已包含商品/类目/达人/关键词四个维度。
 
 ## 常用命令
 ```bash

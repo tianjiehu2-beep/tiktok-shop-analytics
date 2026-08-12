@@ -21,13 +21,18 @@ def _log_norm(value: float, cap: float = 1_000_000) -> float:
 
 
 def demand_score(p: dict) -> float:
-    """需求度：总销量 + 近7天销量（当前热度）+ 视频播放 + 带货达人/视频规模。"""
+    """需求度：总销量 + 近7天销量 + 视频播放 + 带货达人/视频规模 + 达人带货效率。"""
     sold = _log_norm(p.get("sold_count") or 0)
     sale_7d = _log_norm(p.get("sale_7d_cnt") or 0, cap=100_000)
     views = _log_norm(p.get("video_views") or 0)
     influencers = _log_norm(p.get("influencer_cnt") or 0, cap=100_000)
     videos = _log_norm(p.get("video_cnt") or 0, cap=100_000)
-    score = (45 * sold + 20 * sale_7d + 15 * views + 12 * influencers + 8 * videos) * 100
+    per_influencer_gmv = 0.0
+    if (p.get("gmv_total") or 0) > 0 and (p.get("influencer_cnt") or 0) > 0:
+        per_influencer_gmv = _log_norm(
+            p["gmv_total"] / max(1, p.get("influencer_cnt") or 1), cap=100_000)
+    score = (40 * sold + 18 * sale_7d + 12 * views + 12 * influencers
+             + 8 * videos + 10 * per_influencer_gmv) * 100
     return round(min(100.0, score), 1)
 
 
