@@ -7,10 +7,11 @@ TikTok Shop 爆品监测与选品分析系统
 自研 TikTok Shop 美区商品数据采集与选品决策系统，自动完成「采集 → 存储 → 毛利测算 → 选品评分 → 可视化看板」全流程。
 
 ## 技术栈
-Python · Playwright · 可插拔数据源架构 · SQLite · 定时调度 + Windows 任务计划 · SVG 看板 · Git
+Python · Playwright · 可插拔数据源架构 · EchoTik 开放 API · SQLite · 定时调度 + Windows 任务计划 · SVG 看板 · Git
 
 ## 项目亮点（面试讲这几点）
 - 可插拔数据源：抽象 DataSource 接口，统一 demo（模拟）/ scraper（自建 Playwright 采集）/ api（第三方数据平台，如 Kalodata、EchoTik、FastMoss）三种来源，切换数据供给不碰业务管道。
+- 第三方 API 落地：真实对接 EchoTik 开放接口（Basic 认证、GET 搜索接口、响应字段归一化），免费额度下跑通真实商品采集并落库。
 - 数据管道：采集、增量更新、价格/销量历史快照、断点续爬，形成每日自动更新的商品库。
 - 定时调度：内置每日调度器 + Windows 任务计划一键注册，实现无人值守的日报产出与日志留存。
 - 反爬实战：研究 TikTok X-Bogus/MsToken 签名与浏览器指纹风控，采用真实浏览器 + 页面内嵌 JSON 解析方案，兼容页面改版。
@@ -23,7 +24,7 @@ Python · Playwright · 可插拔数据源架构 · SQLite · 定时调度 + Win
 - 背景：跨境电商选品依赖人工浏览，效率低且缺少量化依据。
 - 任务：搭建一套自动化的 TikTok Shop 竞品/选品数据系统。
 - 行动：设计可插拔数据源架构，实现 Playwright 采集器与第三方数据 API 适配器；设计 SQLite 分层存储与历史快照；构建毛利测算与三维选品评分模型；产出 HTML 分析看板与 CSV 导出。
-- 结果：系统运行后每天自动更新 100+ 商品数据，输出 Top 20 爆品榜与机会类目，将选品决策周期从数天缩短到分钟级。
+- 结果：系统运行后每天自动更新 100+ 商品数据，输出 Top 20 爆品榜与机会类目，将选品决策周期从数天缩短到分钟级；已通过 EchoTik 真实接口完成采集验证。
 
 ## 面试可能被追问的点
 - 为什么用 Playwright 而不是 requests？→ TikTok 需要执行 JS、有签名和滑块风控，真实浏览器绕过签名成本最低。
@@ -31,4 +32,5 @@ Python · Playwright · 可插拔数据源架构 · SQLite · 定时调度 + Win
 - 怎么保证数据不重复？→ 商品表以 product_id 为主键，快照表记录每次变化，天然去重。
 - 增量采集怎么做？→ 已存在商品只更新字段，同时追加价格/销量快照用于趋势。
 - 如果页面改版了怎么办？→ 优先解析 __UNIVERSAL_DATA_FOR_REHYDRATION__ 内嵌 JSON；选择器失效时更新候选选择器列表。
+- 为什么接 EchoTik API？→ 自建采集受反爬、账号、网络（代理）约束，第三方数据服务稳定且合规；不同平台鉴权/字段差异大，用统一 ProviderConfig + normalize_item 归一化。
 - 法律合规？→ 仅采集公开页面、控制频率、遵守 robots.txt；生产环境优先走官方 Partner API 或第三方数据服务。
