@@ -1,4 +1,4 @@
-# install_task.ps1 - 注册 Windows 任务计划程序：每天定时跑真实采集并推送 GitHub
+﻿# install_task.ps1 - 注册 Windows 任务计划程序：每天定时跑真实采集并推送 GitHub
 # 用法（管理员 PowerShell）：
 #   .\scripts\install_task.ps1                  # 默认：每天 08:00
 #   .\scripts\install_task.ps1 -Time "07:30"

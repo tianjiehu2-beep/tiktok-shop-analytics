@@ -9,3 +9,4 @@ reports/*.png
 reports/*.jpg
 logs/*.log
 data/api_key.txt
+data/fastmoss_key.txt
