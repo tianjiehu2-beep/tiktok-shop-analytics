@@ -10,5 +10,4 @@ reports/*.csv
 reports/*.png
 reports/*.jpg
 logs/*.log
-data/categories.json
 reports/alerts_*.md

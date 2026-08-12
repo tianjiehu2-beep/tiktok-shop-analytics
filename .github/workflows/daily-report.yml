@@ -30,8 +30,8 @@ jobs:
       - name: 生成数据与看板
         run: |
           if [ -n "${{ secrets.TTSHOP_API_KEY }}" ]; then
-            python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}"
-            python main.py run --source api --keyword "yoga mat" --limit 30 --with-influencers --api-key "${{ secrets.TTSHOP_API_KEY }}"
+            python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}" || python main.py run --source demo --products 300
+            python main.py run --source api --keyword "yoga mat" --limit 30 --with-influencers --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "keyword collection skipped"
             python main.py influencers --sort followers --pages 2 --limit 20 --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "influencers collection skipped"
             python main.py keywords --tab all --limit 15 --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "keywords collection skipped"
           else
