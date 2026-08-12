@@ -211,6 +211,29 @@ def cmd_keywords(args, settings: Settings) -> int:
     return 0
 
 
+def cmd_alerts(args, settings: Settings) -> int:
+    from ttshop.analysis.alerts import (
+        ALERT_LABELS, compute_alerts, export_markdown, push_webhook, today_alerts)
+
+    db = _get_db(args, settings)
+    new_count = compute_alerts(
+        db, min_surge=args.min_surge, growth_threshold=args.growth,
+        price_drop_pct=args.price_drop_pct, min_price_drop=args.min_price_drop)
+    alerts = today_alerts(db, limit=args.limit)
+    print(f"今日异动检测完成: 新增 {new_count} 条，今日累计 {len(alerts)} 条")
+    print()
+    for a in alerts:
+        label = ALERT_LABELS.get(a["alert_type"], a["alert_type"])
+        print(f"[{label}] {'★' * a['severity']} {a['message']}")
+    md = export_markdown(alerts, Path("reports"))
+    print()
+    print(f"异动清单已导出: {md}")
+    if args.webhook:
+        ok = push_webhook(args.webhook, alerts)
+        print(f"Webhook 推送: {'成功' if ok else '失败'}")
+    return 0
+
+
 def cmd_trend(args, settings: Settings) -> int:
     from ttshop.analysis.trend import compute_trends
 
@@ -334,6 +357,15 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape.add_argument("--headful", action="store_true", help="显示浏览器窗口（便于调试反爬）")
     p_scrape.add_argument("--proxy", default=None, help="代理地址，如 socks5://127.0.0.1:40000")
     p_scrape.set_defaults(func=cmd_scrape)
+
+    p_alerts = sub.add_parser("alerts", help="监控告警：每日异动检测（降价/爆量/新品上榜）+ 推送")
+    p_alerts.add_argument("--min-surge", type=int, default=100, help="爆量异动最低近7天销量")
+    p_alerts.add_argument("--growth", type=float, default=1.5, help="爆量异动最低7天增速（倍数）")
+    p_alerts.add_argument("--price-drop-pct", type=float, default=0.05, help="降价异动最低降幅（默认5%%）")
+    p_alerts.add_argument("--min-price-drop", type=float, default=1.0, help="降价异动最低绝对降幅（美元）")
+    p_alerts.add_argument("--webhook", default=None, help="推送URL（钉钉/企业微信/飞书机器人）")
+    p_alerts.add_argument("--limit", type=int, default=60)
+    p_alerts.set_defaults(func=cmd_alerts)
 
     p_trend = sub.add_parser("trend", help="计算趋势与爆品预测（7天/30天增速、新品检测、爆品指数）")
     p_trend.add_argument("--limit", type=int, default=15)

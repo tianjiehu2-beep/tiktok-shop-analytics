@@ -112,6 +112,17 @@ CREATE TABLE IF NOT EXISTS product_trends (
     hot_score      REAL NOT NULL DEFAULT 0,
     computed_at    TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id  TEXT NOT NULL,
+    alert_type  TEXT NOT NULL,
+    message     TEXT,
+    severity    INTEGER NOT NULL DEFAULT 0,
+    alert_date  TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    UNIQUE (product_id, alert_type, alert_date)
+);
 """
 
 
@@ -288,7 +299,7 @@ class Database:
         """近 days 天内每个商品的销量快照序列 {product_id: [ {sold_count, captured_at} ]}。"""
         with self.conn() as conn:
             rows = conn.execute(
-                """SELECT product_id, sold_count, captured_at
+                """SELECT product_id, price, sold_count, captured_at
                    FROM price_snapshots
                    WHERE captured_at >= date('now', ?)
                    ORDER BY product_id, captured_at""",
@@ -296,7 +307,8 @@ class Database:
             ).fetchall()
         series: dict[str, list[dict]] = {}
         for r in rows:
-            series.setdefault(r["product_id"], []).append({"sold_count": r["sold_count"], "captured_at": r["captured_at"]})
+            series.setdefault(r["product_id"], []).append({
+                "price": r["price"], "sold_count": r["sold_count"], "captured_at": r["captured_at"]})
         return series
 
     def save_trends(self, rows: list[dict]) -> int:
@@ -331,6 +343,34 @@ class Database:
         sql += " ORDER BY t.hot_score DESC LIMIT ?"
         with self.conn() as conn:
             rows = conn.execute(sql, (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_alerts(self, alerts: list[dict], alert_date: str) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for a in alerts:
+                cur = conn.execute(
+                    """INSERT OR IGNORE INTO alerts
+                       (product_id, alert_type, message, severity, alert_date, created_at)
+                       VALUES (?,?,?,?,?,?)""",
+                    (a["product_id"], a["alert_type"], a.get("message", ""),
+                     a.get("severity", 0), alert_date, now),
+                )
+                written += cur.rowcount
+        return written
+
+    def alerts_by_date(self, alert_date: str | None = None, limit: int = 60) -> list[dict]:
+        sql = """SELECT a.*, p.title, p.category, p.price
+                 FROM alerts a JOIN products p ON p.product_id = a.product_id"""
+        params: list = []
+        if alert_date:
+            sql += " WHERE a.alert_date = ?"
+            params.append(alert_date)
+        sql += " ORDER BY a.severity DESC, a.id DESC LIMIT ?"
+        params.append(limit)
+        with self.conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
     def products(self, category: str | None = None, limit: int | None = None) -> list[dict]:

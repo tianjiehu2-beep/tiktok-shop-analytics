@@ -292,6 +292,15 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
     table_rows = _table_rows(analysis[:20], symbol)
     trend_html = _trend_block(trends)
 
+    alert_rows = db.alerts_by_date(limit=30)
+    alert_table = "\n".join(
+        f"<tr><td><span class='badge'>{_esc(alert_type)}</span></td>"
+        f"<td title='{_esc(a['title'])}'>{_esc(_short(a['title'], 40))}</td>"
+        f"<td>{_esc(a['message'])}</td>"
+        f"<td class='num'>{'★' * a['severity']}</td></tr>"
+        for a, alert_type in [(a, {"price_drop": "降价", "surge": "爆量", "new_hot": "新品"}.get(a["alert_type"], a["alert_type"])) for a in alert_rows]
+    ) if alert_rows else "<tr><td colspan='4'>今日暂无监控异动（每日采集后自动检测）</td></tr>"
+
     influencers = db.top_influencers(limit=10)
     keywords = db.latest_keyword_trends(source="ranking", limit=10)
     ifl_rows = "\n".join(
@@ -329,6 +338,14 @@ def build_report(db: Database, settings, output_path: str | Path) -> Path:
 </section>
 
 <section class="panel"><h2>销量趋势 Top 3（近 30 天）</h2>{trend_html}</section>
+
+<section class="panel">
+  <h2>今日异动（降价 / 爆量 / 新品上榜）</h2>
+  <div class="scroll"><table>
+    <tr><th>类型</th><th>商品</th><th>说明</th><th class="num">严重度</th></tr>
+    {alert_table}
+  </table></div>
+</section>
 
 <section class="panel">
   <h2>类目洞察</h2>
