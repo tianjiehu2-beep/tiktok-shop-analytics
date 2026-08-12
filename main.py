@@ -1,12 +1,14 @@
 """TikTok Shop 爆品监测与选品分析系统 —— 命令行入口。
 
 用法示例：
-  python main.py run --demo                 # 一键：生成模拟数据 -> 分析 -> 出报告
-  python main.py seed --products 300        # 生成模拟商品数据（可重复执行，模拟增量采集）
-  python main.py scrape --keyword "yoga mat"  # 真实采集（需安装 playwright）
-  python main.py analyze                     # 重新计算选品评分
-  python main.py report                      # 生成 HTML 看板
-  python main.py stats                       # 查看数据量
+  python main.py run --demo                     # 一键：生成模拟数据 -> 分析 -> 出报告
+  python main.py seed --products 300            # 生成模拟商品数据（可重复执行，模拟增量采集）
+  python main.py scrape --keyword "yoga mat"    # 真实采集（需安装 playwright）
+  python main.py analyze                        # 重新计算选品评分
+  python main.py report                         # 生成 HTML 看板
+  python main.py schedule --once --demo         # 定时调度：立即执行一次（测试）
+  python main.py schedule --time 08:30 --demo   # 每天 08:30 自动执行（前台进程）
+  python main.py stats                          # 查看数据量
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from ttshop.analysis.scoring import run_analysis
 from ttshop.config import Settings
 from ttshop.db import Database
 from ttshop.demo_data import generate_history, generate_products
+from ttshop.pipeline import run_pipeline
 from ttshop.report.html_report import build_report
 
 logger = logging.getLogger("ttshop")
@@ -94,22 +97,19 @@ def cmd_stats(args, settings: Settings) -> int:
 
 
 def cmd_run(args, settings: Settings) -> int:
-    if args.demo:
-        db = _get_db(args, settings)
-        products = generate_products(count=args.products, category=args.category, seed=args.seed)
-        db.upsert_products(products)
-        for product_id, price, sold, ts in generate_history(products):
-            db.add_history(product_id, price, sold, ts)
-        print(f"[demo] 已生成模拟商品 {len(products)} 条")
-    else:
-        if not args.keyword:
-            print("真实采集需要指定 --keyword（例如: python main.py run --keyword \"yoga mat\"）")
-            return 1
-        if cmd_scrape(args, settings) != 0:
-            return 1
-    run_analysis(db, settings)
-    output = Path(settings.report_dir) / "tiktok_shop_report.html"
-    report_path = build_report(db, settings, output)
+    if not args.demo and not args.keyword:
+        print("真实采集需要指定 --keyword（例如: python main.py run --keyword \"yoga mat\"）")
+        return 1
+    db = _get_db(args, settings)
+    try:
+        report_path = run_pipeline(
+            db, settings, demo=args.demo, keyword=args.keyword,
+            product_count=args.products, limit=args.limit, seed=getattr(args, "seed", None),
+        )
+    except ImportError:
+        print("未安装 playwright，无法真实采集。")
+        print("请先执行: pip install playwright && playwright install chromium")
+        return 1
     print()
     print("=" * 60)
     print("全流程完成 [OK]")
@@ -117,6 +117,27 @@ def cmd_run(args, settings: Settings) -> int:
     print(f"  Top 商品 CSV: {report_path.parent / 'top_products.csv'}")
     print(f"  数据规模: {db.stats()}")
     print("=" * 60)
+    return 0
+
+
+def cmd_schedule(args, settings: Settings) -> int:
+    from ttshop.scheduler import run_loop
+
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    handler = logging.FileHandler(log_dir / "scheduler.log", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(message)s"))
+    logging.getLogger("ttshop").addHandler(handler)
+
+    db = _get_db(args, settings)
+
+    def job() -> None:
+        run_pipeline(
+            db, settings, demo=args.demo, keyword=args.keyword,
+            product_count=args.products, limit=args.limit,
+        )
+
+    run_loop(job, run_at=args.time, interval_minutes=args.interval_minutes, once=args.once)
     return 0
 
 
@@ -159,8 +180,18 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--limit", type=int, default=None)
     p_run.add_argument("--category", default=None)
     p_run.add_argument("--products", type=int, default=200)
-    p_run.add_argument("--seed", type=int, default=42)
+    p_run.add_argument("--seed", type=int, default=None)
     p_run.set_defaults(func=cmd_run)
+
+    p_schedule = sub.add_parser("schedule", help="定时调度：每日/按间隔自动执行数据管道")
+    p_schedule.add_argument("--time", default="08:30", help="每日执行时刻 HH:MM（本地时区，默认 08:30）")
+    p_schedule.add_argument("--interval-minutes", type=int, default=None, help="按固定间隔执行（分钟），用于测试")
+    p_schedule.add_argument("--once", action="store_true", help="立即执行一次后退出（配合 Windows 任务计划程序）")
+    p_schedule.add_argument("--demo", action="store_true", help="使用模拟数据")
+    p_schedule.add_argument("--keyword", default=None, help="真实采集关键词")
+    p_schedule.add_argument("--products", type=int, default=200)
+    p_schedule.add_argument("--limit", type=int, default=None)
+    p_schedule.set_defaults(func=cmd_schedule)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
