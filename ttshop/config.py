@@ -24,7 +24,7 @@ class Settings:
     proxy: str = ""
 
     # 第三方数据 API（api 数据源，如 Kalodata/EchoTik/FastMoss）
-    api_provider: str = "kalodata"
+    api_provider: str = "echotik"
     api_base: str = ""          # 留空则用内置的示例地址（以平台官方文档为准）
     api_key: str = ""           # 留空时从 TTSHOP_API_KEY 环境变量读取
     api_timeout: int = 30       # 请求超时（秒）

@@ -73,7 +73,7 @@ class ApiSourceTest(unittest.TestCase):
 
     def test_fetch_with_mock_http(self):
         source = ApiSource(settings=Settings(api_key="test"))
-        source._get_json = lambda url, config: {
+        source._request_json = lambda url, config, body=None: {
             "data": {"list": [
                 {"product_id": "P1", "title": "Yoga Mat Pro", "price": 12.99, "sales": 100},
                 {"product_id": "P2", "title": "Yoga Block", "price": 8.5, "sales": 50},
@@ -86,12 +86,75 @@ class ApiSourceTest(unittest.TestCase):
     def test_build_url_without_auth_header(self):
         from dataclasses import replace
 
-        source = ApiSource(settings=Settings(api_key="secret"))
+        source = ApiSource(settings=Settings(api_key="secret"), provider="echotik")
         config = replace(source._provider_config(), auth_header="")
         url = source._build_url(config, "https://example.com", "yoga mat", 10, "Sports")
-        self.assertIn("keyword=yoga+mat", url)
+        self.assertIn("sk=yoga+mat", url)
         self.assertIn("api_key=secret", url)
 
+
+    def test_fastmoss_request_body(self):
+        source = ApiSource(settings=Settings(api_key="secret"), provider="fastmoss")
+        url, body = source._build_request(
+            source._provider_config(), "https://openapi.fastmoss.com", "yoga mat", 10, None)
+        self.assertEqual(url, "https://openapi.fastmoss.com/product/v1/search")
+        self.assertEqual(body["keywords"], "yoga mat")
+        self.assertEqual(body["pagesize"], 10)
+        self.assertEqual(body["filter"]["region"], "US")
+
+    def test_normalize_item_fastmoss(self):
+        source = ApiSource(settings=Settings(api_key="test"), provider="fastmoss")
+        item = {
+            "product_id": "1729514474840169156",
+            "title": "Non-Slip Yoga Mat",
+            "floor_price": 29.99,
+            "total_units_sold": 4921,
+            "product_rating": 4.9,
+            "commission_rate": "12.5%",
+            "ctime": "2025-06-03 02:19:00",
+            "category": {"l1": {"name": "Sports & Outdoors"}, "l2": {"name": "Yoga"}},
+            "shop": {"seller_id": 123, "name": "Test Store"},
+        }
+        product = source.normalize_item(item, keyword="yoga mat")
+        self.assertIsNotNone(product)
+        self.assertEqual(product.product_id, "1729514474840169156")
+        self.assertEqual(product.price, 29.99)
+        self.assertEqual(product.sold_count, 4921)
+        self.assertEqual(product.rating, 4.9)
+        self.assertEqual(product.seller_name, "Test Store")
+        self.assertEqual(product.seller_id, "123")
+        self.assertEqual(product.commission_rate, 12.5)
+        self.assertIn("Sports & Outdoors", product.category)
+
+    def test_echotik_query_params(self):
+        source = ApiSource(settings=Settings(api_key="secret"), provider="echotik")
+        url = source._build_url(source._provider_config(), "https://open.echotik.live", "yoga mat", 20, None)
+        self.assertIn("/api/v3/echotik/search/items", url)
+        self.assertIn("sk=yoga+mat", url)
+        self.assertIn("type=2", url)
+        self.assertIn("size=20", url)
+
+    def test_normalize_item_echotik(self):
+        source = ApiSource(settings=Settings(api_key="test"), provider="echotik")
+        item = {
+            "product_id": "1729425704051509331",
+            "product_name": "Yoga Mat Non Slip",
+            "min_price": 12.5,
+            "total_sale_cnt": 8800,
+            "product_rating": 4.8,
+            "review_count": 320,
+            "seller_id": "7494831765943781864",
+            "product_commission_rate": 15,
+        }
+        product = source.normalize_item(item, keyword="yoga mat")
+        self.assertIsNotNone(product)
+        self.assertEqual(product.product_id, "1729425704051509331")
+        self.assertEqual(product.title, "Yoga Mat Non Slip")
+        self.assertEqual(product.price, 12.5)
+        self.assertEqual(product.sold_count, 8800)
+        self.assertEqual(product.rating, 4.8)
+        self.assertEqual(product.review_count, 320)
+        self.assertEqual(product.commission_rate, 15.0)
 
 class PipelineSourceTest(unittest.TestCase):
     def setUp(self):

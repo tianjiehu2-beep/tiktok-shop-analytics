@@ -55,8 +55,23 @@ python main.py run --source api --keyword "yoga mat" --api-key xxx
 第三方 API 平台（Kalodata / EchoTik / FastMoss 等）注册账号后一般有免费额度：
 ```bash
 set TTSHOP_API_KEY=xxx          # Windows 环境变量（推荐，避免 key 进命令行历史）
-python main.py run --source api --keyword "yoga mat" --provider kalodata
+python main.py run --source api --keyword "yoga mat" --provider echotik
 ```
+
+#### EchoTik（推荐：免费 100 次测试额度）
+1. 打开 https://echotik.live/platform/api-keys 注册 / 登录，领取专属 `username` 和 `password`。
+2. API Key = `Base64(username:password)`，Windows 一行算出：
+   ```powershell
+   [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("你的username:你的password"))
+   ```
+3. 把上一步结果设为环境变量（避免 key 进命令行历史）：
+   ```powershell
+   setx TTSHOP_API_KEY "Base64结果"
+   set TTSHOP_API_KEY=Base64结果   # 当前窗口立即生效
+   python main.py run --source api --keyword "yoga mat" --provider echotik
+   ```
+4. 请求：`GET https://open.echotik.live/api/v3/echotik/search/items?sk=关键词&type=2&size=30`，
+   认证头 `Authorization: Basic <Base64>`，商品列表取 `data.list`（字段见 `normalize_item`）。
 各平台响应字段不同，在 `ttshop/sources/api.py` 的 `PROVIDERS` 中按官方文档调整
 base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normalize_item` 中完成。
 新增数据源：实现 `ttshop/sources/base.py` 的 `DataSource` 并在 `get_source` 注册即可。
