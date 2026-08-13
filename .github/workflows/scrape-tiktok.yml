@@ -36,41 +36,66 @@ jobs:
           python - <<'PY'
           import json
           from playwright.sync_api import sync_playwright
+
           urls = [
+              "https://shop.tiktok.com/us/s?q=yoga%20mat",
               "https://www.tiktok.com/shop/s?q=yoga%20mat",
-              "https://www.tiktok.com/shop/s?q=yoga%20mat&region=US",
           ]
+          UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
           with sync_playwright() as p:
               b = p.chromium.launch(headless=True)
-              ctx = b.new_context(
-                  locale="en-US",
-                  timezone_id="America/New_York",
-                  user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-              )
+              ctx = b.new_context(locale="en-US", timezone_id="America/New_York", user_agent=UA)
               page = ctx.new_page()
+              api_log = []
+
+              def on_response(resp):
+                  u = resp.url
+                  if any(k in u for k in ("api", "search", "query", "graphql", "products")):
+                      try:
+                          ct = resp.headers.get("content-type", "")
+                          if "json" in ct:
+                              api_log.append((resp.status, u[:250]))
+                      except Exception:
+                          pass
+              page.on("response", on_response)
+
               for i, url in enumerate(urls):
                   try:
                       page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                      page.wait_for_timeout(4000)
+                      page.wait_for_timeout(8000)
+                      for _ in range(5):
+                          page.mouse.wheel(0, 1200)
+                          page.wait_for_timeout(1200)
                       print(f"--- URL[{i}] ---")
                       print("TITLE:", page.title())
                       print("FINAL_URL:", page.url)
-                      body = page.evaluate("document.body ? document.body.innerText.slice(0, 200) : ''")
-                      print("BODY:", body.replace("\n", " | ")[:200])
-                      ld_count = page.evaluate("""() => {
-                          let n = 0;
+                      ld = page.evaluate("""() => {
+                          const out = [];
                           for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
                               try {
                                   const d = JSON.parse(s.textContent);
-                                  if (d && d['@type'] === 'ItemList' && Array.isArray(d.itemListElement)) n += d.itemListElement.length;
-                              } catch (e) {}
+                                  out.push({type: d['@type'] || '?', len: s.textContent.length});
+                              } catch (e) { out.push({type: 'PARSE_ERR'}); }
                           }
-                          return n;
+                          return out;
                       }""")
-                      print("JSONLD_ITEMS:", ld_count)
+                      print("JSONLD_BLOCKS:", json.dumps(ld))
+                      globs = page.evaluate("""() => {
+                          const keys = Object.keys(window).filter(k => /data|state|init|render|shop|product/i.test(k));
+                          return keys.slice(0, 50);
+                      }""")
+                      print("WINDOW_KEYS:", json.dumps(globs))
+                      print("BODY_LEN:", page.evaluate("document.body ? document.body.innerText.length : 0"))
+                      print("PDP_LINKS:", page.evaluate("""() => document.querySelectorAll('a[href*="/pdp/"]').length"""))
+                      html = page.evaluate("document.documentElement.outerHTML")
+                      open(f"diagnose_{i}.html", "w", encoding="utf-8").write(html)
                       page.screenshot(path=f"diagnose_{i}.png")
                   except Exception as exc:
                       print(f"--- URL[{i}] ERROR:", str(exc)[:300])
+              print("=== API RESPONSES ===")
+              for status, u in api_log[:50]:
+                  print(status, u)
               b.close()
           PY
 
@@ -107,3 +132,5 @@ jobs:
             reports/tiktok_shop_report.html
             diagnose_0.png
             diagnose_1.png
+            diagnose_0.html
+            diagnose_1.html
