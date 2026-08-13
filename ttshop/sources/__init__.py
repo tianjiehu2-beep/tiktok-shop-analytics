@@ -39,11 +39,25 @@ def get_source(name: str | None, settings: Settings | None = None, **kwargs) -> 
             proxy=kwargs.pop("proxy", settings.proxy or None),
         )
     if name == "api":
+        data_dir = Path(settings.db_path).parent
+        api_provider = kwargs.pop("api_provider", None)
+        api_key = kwargs.pop("api_key", None) or os.environ.get("TTSHOP_API_KEY") or ""
+        if not api_key:
+            # 与 auto 源一致：自动从本地密钥文件加载（EchoTik -> FastMoss）
+            if api_provider is None:
+                if _read_secret(data_dir / "api_key.txt"):
+                    api_provider, api_key = "echotik", _read_secret(data_dir / "api_key.txt")
+                elif _read_secret(data_dir / "fastmoss_key.txt"):
+                    api_provider, api_key = "fastmoss", _read_secret(data_dir / "fastmoss_key.txt")
+            elif str(api_provider).lower() == "echotik":
+                api_key = _read_secret(data_dir / "api_key.txt")
+            elif str(api_provider).lower() == "fastmoss":
+                api_key = os.environ.get("FAST_MOSS_API_KEY") or _read_secret(data_dir / "fastmoss_key.txt")
         return ApiSource(
             settings=settings,
-            provider=kwargs.pop("api_provider", None),
+            provider=api_provider,
             api_base=kwargs.pop("api_base", None),
-            api_key=kwargs.pop("api_key", None),
+            api_key=api_key,
             region=kwargs.pop("region", settings.region),
             timeout=kwargs.pop("api_timeout", None),
             category_id=kwargs.pop("category_id", None),

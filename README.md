@@ -151,7 +151,7 @@ python main.py alerts --webhook https://oapi.dingtalk.com/robot/send?access_toke
 - 趋势/爆品/预测（`price_snapshots` 时间序列 + `product_trends` + `product_forecasts`）：近7天/30天销量增量、
   7天增速、新品检测、爆品指数、未来7/30天销量预测、生命周期（导入/成长/成熟/衰退）与选品推荐理由。
 - 店铺（`sellers` 聚合 + `shop_watch` 关注池）：卖家商品数/累计销量/GMV/均价、关注店铺上新检测与告警。
-- 直播（`live_sessions`）：直播场次 GMV/销量/峰值观看/时长，直播带货榜；短视频热度榜按视频播放量排序。
+- 直播（`live_sessions`）：直播场次 GMV/销量/峰值观看/时长，直播带货榜；短视频带货榜按带货视频数排序。
 看板已包含商品/类目/达人/关键词/爆品预测/店铺监控/内容带货榜/今日变动八个维度；类目洞察含蓝海指数（增速×分散度×进入门槛×市场量级，>=50 为机会类目）。
 
 ## 常用命令
@@ -195,6 +195,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\push_report.ps1
 ```
 
 执行日志写入 `logs/push_report_yyyyMMdd.log`；`reports/` 下的看板与 Top 商品 CSV 会随每日提交推送到仓库。
+### 真实数据快照（2026-08-13）
+已用 EchoTik 免费额度完成一次真实采集并提交看板：
+
+- 关键词 `yoga mat`（30 条）+ 类目 `Yoga & Pilates`(603084)（20 条），去重后 **48 个真实商品**入库；
+- 带货达人 **20 位**、飙升关键词 **15 个**（EchoTik 实时接口）；
+- 线上看板即该快照：[在线看板](https://tianjiehu2-beep.github.io/tiktok-shop-analytics/index.html)；
+- 说明：直播带货榜无公开直播场次 API，由 `python main.py live` 基于库内商品生成**模拟数据**（看板面板已标注）；短视频带货榜按 EchoTik 真实带货视频数 / 带货达人数排序。
+
 ## Playwright 真实采集 TikTok Shop
 ```bash
 pip install playwright

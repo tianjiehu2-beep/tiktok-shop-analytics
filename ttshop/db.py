@@ -583,8 +583,8 @@ class Database:
             rows = conn.execute(
                 """SELECT product_id, title, category, price, video_views, video_likes,
                           influencer_cnt, video_cnt, sold_count
-                   FROM products WHERE is_active = 1 AND video_views > 0
-                   ORDER BY video_views DESC LIMIT ?""", (limit,)).fetchall()
+                   FROM products WHERE is_active = 1 AND video_cnt > 0
+                   ORDER BY video_cnt DESC LIMIT ?""", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def upsert_live_sessions(self, sessions: list[LiveSession]) -> int:

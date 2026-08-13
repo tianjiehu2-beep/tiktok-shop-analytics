@@ -429,9 +429,9 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
     video_rows = db.top_video_products(limit=8)
     video_rows_html = "\n".join(
         f"<tr><td>{i}</td><td title='{_esc(r['title'])}'>{_esc(_short(r['title'], 30))}</td>"
-        f"<td class='num'>{r['video_views']:,}</td>"
         f"<td class='num'>{r['video_cnt']:,}</td>"
-        f"<td class='num'>{r['influencer_cnt']:,}</td></tr>"
+        f"<td class='num'>{r['influencer_cnt']:,}</td>"
+        f"<td class='num'>{r['sold_count']:,}</td></tr>"
         for i, r in enumerate(video_rows, 1)
     ) if video_rows else "<tr><td colspan='5'>暂无视频数据</td></tr>"
 
@@ -547,15 +547,15 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
 </section>
 
 <section class="cols2">
-  <div class="panel"><h2>直播带货榜（近3天 · 按GMV）</h2>
+  <div class="panel"><h2>直播带货榜（近3天 · 按GMV · 模拟数据）</h2>
     <div class="scroll"><table>
       <tr><th>#</th><th>店铺</th><th>直播主题</th><th>主推商品</th><th class="num">GMV</th><th class="num">销量</th><th class="num">峰值观看</th></tr>
       {live_rows_html}
     </table></div>
   </div>
-  <div class="panel"><h2>短视频热度榜（按视频播放）</h2>
+  <div class="panel"><h2>短视频带货榜（按带货视频数）</h2>
     <div class="scroll"><table>
-      <tr><th>#</th><th>商品</th><th class="num">视频播放</th><th class="num">带货视频</th><th class="num">带货达人</th></tr>
+      <tr><th>#</th><th>商品</th><th class="num">带货视频数</th><th class="num">带货达人</th><th class="num">已售</th></tr>
       {video_rows_html}
     </table></div>
   </div>
