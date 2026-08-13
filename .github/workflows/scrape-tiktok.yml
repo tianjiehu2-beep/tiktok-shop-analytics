@@ -31,6 +31,38 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
+      - name: Diagnose what TikTok returns
+        run: |
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          urls = [
+              "https://www.tiktok.com/shop/tt4b/search?q=yoga%20mat&region=US",
+              "https://shop.tiktok.com/search?q=yoga%20mat&region=US",
+          ]
+          with sync_playwright() as p:
+              b = p.chromium.launch(headless=True)
+              ctx = b.new_context(
+                  locale="en-US",
+                  timezone_id="America/New_York",
+                  user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+              )
+              page = ctx.new_page()
+              for i, url in enumerate(urls):
+                  try:
+                      page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                      page.wait_for_timeout(5000)
+                      print(f"--- URL[{i}] ---")
+                      print("TITLE:", page.title())
+                      print("FINAL_URL:", page.url)
+                      print("HAS_DATA_SCRIPT:", page.evaluate("!!document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')"))
+                      body = page.evaluate("document.body ? document.body.innerText.slice(0, 400) : ''")
+                      print("BODY:", body.replace("\n", " | ")[:400])
+                      page.screenshot(path=f"diagnose_{i}.png")
+                  except Exception as exc:
+                      print(f"--- URL[{i}] ERROR:", str(exc)[:300])
+              b.close()
+          PY
+
       - name: Direct scrape TikTok Shop
         run: |
           python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
@@ -62,3 +94,5 @@ jobs:
           path: |
             data/tiktok_shop.db
             reports/tiktok_shop_report.html
+            diagnose_0.png
+            diagnose_1.png
