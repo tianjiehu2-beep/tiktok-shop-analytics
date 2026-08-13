@@ -201,6 +201,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\push_report.ps1
 - 关键词 `yoga mat`（30 条）+ 类目 `Yoga & Pilates`(603084)（20 条），去重后 **48 个真实商品**入库；
 - 带货达人 **20 位**、飙升关键词 **15 个**（EchoTik 实时接口）；
 - 线上看板即该快照：[在线看板](https://tianjiehu2-beep.github.io/tiktok-shop-analytics/index.html)；
+- 选品分析报告（运营交付样例）：[中文版](reports/TikTokShop选品分析报告_yoga_mat.docx) · [English](reports/TikTokShop_US_Product_Selection_Analysis_yoga_mat.docx)；
 - 说明：直播带货榜无公开直播场次 API，由 `python main.py live` 基于库内商品生成**模拟数据**（看板面板已标注）；短视频带货榜按 EchoTik 真实带货视频数 / 带货达人数排序。
 
 ## Playwright 真实采集 TikTok Shop
