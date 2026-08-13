@@ -83,6 +83,47 @@ class ApiSourceTest(unittest.TestCase):
         self.assertEqual(len(result.products), 2)
         self.assertEqual(result.products[0].product_id, "P1")
 
+    def test_fetch_by_product_ids(self):
+        source = ApiSource(settings=Settings(api_key="test"), provider="echotik")
+        source.product_ids = ["P1", "P2"]
+        calls = []
+
+        def mock_request(url, config, body=None):
+            calls.append(url)
+            return {"data": [
+                {"product_id": "P1", "product_name": "Yoga Mat", "min_price": 12.99, "total_sale_cnt": 100},
+                {"product_id": "P2", "product_name": "Yoga Block", "min_price": 8.5, "total_sale_cnt": 50},
+            ]}
+
+        source._request_json = mock_request
+        result = source.fetch(limit=10)
+        self.assertEqual(len(result.products), 2)
+        self.assertIn("product_ids=P1%2CP2", calls[0])
+        self.assertEqual(result.products[0].title, "Yoga Mat")
+
+    def test_fetch_shop_products_fills_seller_id(self):
+        source = ApiSource(settings=Settings(api_key="test"), provider="echotik")
+        source.seller_id = "7496125336660249320"
+        source.pages = 2
+        calls = []
+
+        def mock_request(url, config, body=None):
+            calls.append(url)
+            if "page_num=1" in url:
+                return {"data": [
+                    {"product_id": "S1P1", "product_name": "Ab Cruncher", "min_price": 9.0, "total_sale_cnt": 100},
+                ]}
+            return {"data": [
+                {"product_id": "S1P2", "product_name": "Massage Gun", "min_price": 18.99, "total_sale_cnt": 50},
+            ]}
+
+        source._request_json = mock_request
+        result = source.fetch(limit=10)
+        self.assertEqual(len(result.products), 2)
+        self.assertTrue(all(p.seller_id == "7496125336660249320" for p in result.products))
+        self.assertEqual(len(calls), 2)
+        self.assertIn("seller_id=7496125336660249320", calls[0])
+
     def test_build_url_without_auth_header(self):
         from dataclasses import replace
 

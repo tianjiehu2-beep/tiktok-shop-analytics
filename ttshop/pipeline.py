@@ -32,6 +32,7 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
                  pages: int = 1, sort_field: str | None = None,
                  min_sales: int | None = None, max_price: float | None = None,
                  min_commission: float | None = None, enrich: bool = False,
+                 seller_id: str | None = None, product_ids: str | None = None,
                  language: str = "en-US") -> Path:
     """执行一次完整数据管道，返回 HTML 报告路径。
 
@@ -46,7 +47,8 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
         source, settings,
         seed=seed, product_count=product_count, proxy=proxy, category=category,
         api_provider=api_provider, api_base=api_base, api_key=api_key,
-        category_id=category_id, pages=pages, sort_field=sort_field,
+        category_id=category_id, pages=pages, seller_id=seller_id,
+        product_ids=product_ids, sort_field=sort_field,
         min_sales=min_sales, max_price=max_price, min_commission=min_commission,
         enrich=enrich, language=language,
     )

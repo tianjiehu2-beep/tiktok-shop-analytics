@@ -4,3 +4,7 @@ playwright>=1.44
 
 # 可选：数据分析/导出
 pandas>=2.0
+
+# UI 看板（Streamlit 本地/云端）
+streamlit>=1.36
+plotly>=5.20

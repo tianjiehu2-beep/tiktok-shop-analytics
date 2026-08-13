@@ -104,9 +104,14 @@ def cmd_stats(args, settings: Settings) -> int:
 def cmd_run(args, settings: Settings) -> int:
     source = "demo" if args.demo else args.source
     if source is None:
-        source = "api" if (args.keyword or args.category_id) else "demo"
-    if source in ("scraper", "api") and not args.keyword and not (source == "api" and args.category_id):
-        print(f"{source} 数据源需要 --keyword 或 --category-id（例如: python main.py run --source {source} --keyword \"yoga mat\"）")
+        source = "api" if (args.keyword or args.category_id
+                          or getattr(args, "seller_id", None)
+                          or getattr(args, "product_ids", None)) else "demo"
+    if source in ("scraper", "api") and not args.keyword and not (
+            source == "api" and (args.category_id or getattr(args, "seller_id", None)
+                                 or getattr(args, "product_ids", None))):
+        print(f"{source} 数据源需要 --keyword / --category-id / --seller-id / --product-ids"
+              f"（例如: python main.py run --source api --category-id 603084）")
         return 1
     db = _get_db(args, settings)
     try:
@@ -116,6 +121,8 @@ def cmd_run(args, settings: Settings) -> int:
             proxy=args.proxy, category=args.category,
             api_provider=args.provider, api_base=args.api_base, api_key=args.api_key,
             category_id=getattr(args, "category_id", None), pages=getattr(args, "pages", 1),
+            seller_id=getattr(args, "seller_id", None),
+            product_ids=getattr(args, "product_ids", None),
             sort_field=getattr(args, "sort", None),
             min_sales=getattr(args, "min_sales", None), max_price=getattr(args, "max_price", None),
             min_commission=getattr(args, "min_commission", None), enrich=getattr(args, "enrich", False),
@@ -482,6 +489,8 @@ def cmd_schedule(args, settings: Settings) -> int:
             proxy=args.proxy, category=getattr(args, "category", None),
             api_provider=args.provider, api_base=args.api_base, api_key=args.api_key,
             category_id=getattr(args, "category_id", None), pages=getattr(args, "pages", 1),
+            seller_id=getattr(args, "seller_id", None),
+            product_ids=getattr(args, "product_ids", None),
             sort_field=getattr(args, "sort", None),
             min_sales=getattr(args, "min_sales", None), max_price=getattr(args, "max_price", None),
             min_commission=getattr(args, "min_commission", None), enrich=getattr(args, "enrich", False),
@@ -631,7 +640,9 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--limit", type=int, default=None)
     p_run.add_argument("--category", default=None, help="类目标签（写库时标记用）")
     p_run.add_argument("--category-id", default=None, help="类目ID按类目采集（api源，用 categories 命令查询）")
-    p_run.add_argument("--pages", type=int, default=1, help="按类目采集翻页数（每页最多10条）")
+    p_run.add_argument("--seller-id", default=None, help="店铺ID按店铺采集该店全部商品（api源，如 7496125336660249320）")
+    p_run.add_argument("--product-ids", default=None, help="商品ID按具体商品采集（api源，逗号分隔多个，如 1729385586104308698,1731306663137743592）")
+    p_run.add_argument("--pages", type=int, default=1, help="按类目/店铺采集翻页数（每页最多10条）")
     p_run.add_argument("--sort", default=None, choices=["sales", "gmv", "price", "sales7d", "sales30d", "gmv7d", "gmv30d"],
                        help="按类目采集排序字段（默认销量降序）")
     p_run.add_argument("--min-sales", type=int, default=None, help="筛选最低总销量")
@@ -655,6 +666,8 @@ def main(argv: list[str] | None = None) -> int:
     p_schedule.add_argument("--keyword", default=None, help="scraper/api 数据源搜索关键词")
     p_schedule.add_argument("--category", default=None, help="类目标签")
     p_schedule.add_argument("--category-id", default=None, help="类目ID按类目采集（api源）")
+    p_schedule.add_argument("--seller-id", default=None, help="店铺ID按店铺采集该店全部商品（api源）")
+    p_schedule.add_argument("--product-ids", default=None, help="商品ID按具体商品采集（api源，逗号分隔多个）")
     p_schedule.add_argument("--pages", type=int, default=1)
     p_schedule.add_argument("--sort", default=None, choices=["sales", "gmv", "price", "sales7d", "sales30d", "gmv7d", "gmv30d"])
     p_schedule.add_argument("--min-sales", type=int, default=None)

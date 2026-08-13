@@ -80,9 +80,10 @@ python main.py run --source api --keyword "yoga mat" --provider echotik
 base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normalize_item` 中完成。
 新增数据源：实现 `ttshop/sources/base.py` 的 `DataSource` 并在 `get_source` 注册即可。
 
-## 成熟采集：按类目 / 按具体商品批量爬（EchoTik API）
+## 成熟采集：按类目 / 按具体商品 / 按店铺（EchoTik API）
 采集器已对接 EchoTik 多个真实接口，支持类目树浏览、按类目分页采集、批量关键词、
-商品详情补全与商品榜单，落库后自动做毛利测算、选品评分并生成看板。
+按商品 ID 精准采集、按店铺整店采集、商品详情补全与商品榜单，落库后自动做
+毛利测算、选品评分并生成看板。所有命令都能脱离 Codex 直接运行。
 
 ```bash
 # 1) 浏览 / 搜索类目，拿到类目 ID（缓存到 data/categories.json）
@@ -99,16 +100,23 @@ python main.py run --source api --keyword "yoga mat,resistance band,pilates bar"
 # 4) 筛选条件：最低销量 / 最高均价 / 最低佣金率
 python main.py run --source api --category-id 600001 --pages 3 --min-sales 1000 --max-price 30 --min-commission 0.1
 
-# 5) 采集商品榜单（日/周/月榜）
+# 5) 按具体商品 ID 采集：精准追踪某个商品/链接（逗号分隔多个，每批最多 20 个）
+python main.py run --source api --product-ids 1729385586104308698,1731306663137743592
+
+# 6) 按店铺采集：抓取某个卖家在售商品（--pages 控制翻页，每页最多 10 条）
+python main.py run --source api --seller-id 7496125336660249320 --pages 5
+python main.py shops add --seller-id 7496125336660249320   # 加入店铺监控，之后 shops new 看上新
+
+# 7) 采集商品榜单（日/周/月榜）
 python main.py ranklist --category-id 603084 --period day --limit 10
 python main.py ranklist --period week --limit 10
 
-# 6) 达人数据（人-货闭环）：带货达人榜 / 达人列表 / 商品关联达人
+# 8) 达人数据（人-货闭环）：带货达人榜 / 达人列表 / 商品关联达人
 python main.py influencers --rank --period day --limit 10      # 达人带货榜（按销量）
 python main.py influencers --sort followers --min-gmv 1000     # 高带货GMV达人列表
 python main.py run --source api --keyword "yoga mat" --with-influencers   # 商品由谁在带
 
-# 7) 关键词数据：趋势搜索词榜 / 关键词灵感（发现选题与选品方向）
+# 9) 关键词数据：趋势搜索词榜 / 关键词灵感（发现选题与选品方向）
 python main.py keywords --tab all --limit 20                  # 飙升关键词
 python main.py keywords --keyword yoga --limit 20             # 围绕 yoga 的相关热词
 
@@ -165,10 +173,48 @@ python main.py stats                         # 查看数据规模
 python main.py run --demo                    # 一键全流程（模拟数据）
 python main.py run --source api --category-id 603084 --pages 3   # 按类目真实采集
 python main.py run --source api --keyword "yoga mat"             # 按关键词真实采集
+python main.py run --source api --product-ids 1729385586104308698 # 按商品ID精准采集
+python main.py run --source api --seller-id 7496125336660249320 --pages 3  # 按店铺整店采集
 python main.py ranklist --period day         # 采集商品榜单
 python main.py schedule --once --demo        # 立即执行一次（测试）
 python main.py schedule --time 08:30 --demo  # 每天 08:30 自动执行
 ```
+
+## Web UI 看板（本地运行 / 免费上线）
+
+基于 Streamlit 的可视化界面，支持在浏览器里选类目、输入商品/店铺 ID 采集数据并查看图表，
+不依赖 Codex，任何电脑都能用。界面复用 `ttshop` 全部采集/分析能力，共 5 页：
+总览看板 / 类目采集 / 商品采集 / 店铺采集 / 数据快照。
+
+### 本地启动（Windows）
+
+```powershell
+python -m pip install -r requirements.txt
+python -m streamlit run ui/app.py
+```
+
+或直接双击 `ui/start_ui.bat`。浏览器自动打开 http://localhost:8501 。
+
+### 免费上线（Streamlit Community Cloud，永久网址）
+
+1. 把代码 push 到 GitHub（仓库可保持私有）。
+2. 打开 https://share.streamlit.io ，用 GitHub 账号登录 → New app → 选择本仓库，
+   入口文件填 `ui/app.py` → Deploy，获得 https://<名字>.streamlit.app 永久网址。
+3. 在 App Settings → Secrets 里配置（一行一个）：
+   ```toml
+   TTSHOP_API_KEY = "<EchoTik 的 base64(用户名:密码)>"
+   APP_PASSWORD = "<你设置的访问密码>"
+   ```
+   - `TTSHOP_API_KEY` 就是 `data/api_key.txt` 里那一串，代码读不到本地文件时自动用云端密钥；
+   - `APP_PASSWORD` 开启访问密码门，防止陌生人消耗你的 EchoTik 免费额度（可留空=不设密码）。
+4. 以后本地 push 代码，云端自动重新部署。
+
+### 云端注意事项
+
+- 免费档的数据库文件会在应用重启/休眠后重置，请在「数据快照」页导出 `.db` 快照保存到本地；
+  换设备/换电脑后用「导入快照」恢复。
+- 应用闲置一段时间会休眠，下次打开等待 30~60 秒唤醒属正常现象。
+- 定时更新建议留在本地 CLI：`python main.py schedule --time 08:30 --source api --category-id <ID>`。
 
 ## 在线看板（GitHub Pages，可选）
 仓库内置 GitHub Actions 工作流（`.github/workflows/daily-report.yml`）：每天自动生成数据与

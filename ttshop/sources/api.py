@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -67,6 +67,7 @@ class ProviderConfig:
     search_path: str = ""            # keyword search endpoint
     product_list_path: str = ""      # category/filter product list endpoint
     product_detail_path: str = ""    # batch product detail endpoint
+    shop_products_path: str = ""     # seller shop product list endpoint
     ranklist_path: str = ""          # product ranklist endpoint
     category_path: str = ""          # level-1 category list
     category_l2_path: str = ""       # level-2 category list
@@ -103,6 +104,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
         search_path="/api/v3/echotik/search/items",
         product_list_path="/api/v3/echotik/product/list",
         product_detail_path="/api/v3/echotik/product/detail",
+        shop_products_path="/api/v3/echotik/seller/product/list",
         ranklist_path="/api/v3/echotik/product/ranklist",
         category_path="/api/v3/echotik/category/l1",
         category_l2_path="/api/v3/echotik/category/l2",
@@ -161,6 +163,7 @@ class ApiSource(DataSource):
                  api_base: str | None = None, api_key: str | None = None,
                  region: str | None = None, timeout: int | None = None,
                  category_id: str | None = None, pages: int = 1,
+                 seller_id: str | None = None, product_ids: str | None = None,
                  sort_field: str | None = None, min_sales: int | None = None,
                  max_price: float | None = None, min_commission: float | None = None,
                  enrich: bool = False, language: str = "en-US"):
@@ -174,6 +177,8 @@ class ApiSource(DataSource):
         self.region = region or settings.region
         self.timeout = timeout or settings.api_timeout
         self.category_id = (category_id or "").strip()
+        self.seller_id = (seller_id or "").strip()
+        self.product_ids = [i.strip() for i in (product_ids or "").split(",") if i.strip()]
         self.pages = max(1, int(pages or 1))
         self.sort_field = (sort_field or "").lower()
         self.min_sales = min_sales
@@ -197,12 +202,16 @@ class ApiSource(DataSource):
         if not base:
             raise RuntimeError("API base URL missing: pass --api-base or set TTSHOP_API_BASE")
 
-        if keyword:
+        if self.product_ids:
+            products = self._fetch_by_ids(config, base, limit)
+        elif self.seller_id:
+            products = self._fetch_shop_products(config, base, limit)
+        elif keyword:
             products = self._search_keywords(config, base, keyword, limit)
         elif self.category_id:
             products = self._fetch_by_category(config, base, limit)
         else:
-            raise ValueError('api 数据源需要 --keyword 或 --category-id（例如 "yoga mat" / 600001）')
+            raise ValueError('api 数据源需要 --keyword / --category-id / --seller-id / --product-ids 之一（例如 --category-id 603084 或 --seller-id 7496125336660249320）')
 
         if self.enrich and products:
             products = self._enrich_details(config, base, products)
@@ -268,6 +277,57 @@ class ApiSource(DataSource):
                 if product:
                     collected.append(product)
         return collected
+
+    def _fetch_by_ids(self, config: ProviderConfig, base: str,
+                      limit: int | None) -> list[Product]:
+        """Fetch exact products by product IDs (EchoTik product/detail, batch of 20)."""
+        if not config.product_detail_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持按商品ID采集（当前仅 EchoTik 支持）")
+        collected: list[Product] = []
+        ids = list(dict.fromkeys(self.product_ids))
+        for start in range(0, len(ids), 20):
+            chunk = ids[start:start + 20]
+            params = {"product_ids": ",".join(chunk), "region": self.region}
+            url = base + config.product_detail_path + "?" + urlencode(params)
+            logger.info("fetching products by ids: %s", url)
+            payload = self._request_json(url, config)
+            for item in _as_list(payload, config.items_path):
+                product = self.normalize_item(item, keyword="", category=None)
+                if product:
+                    collected.append(product)
+            if limit and len(collected) >= limit:
+                break
+        return collected[:limit] if limit else collected
+
+    def _fetch_shop_products(self, config: ProviderConfig, base: str,
+                             limit: int | None) -> list[Product]:
+        """Crawl all products of a seller/shop (EchoTik seller/product/list)."""
+        if not config.shop_products_path:
+            raise RuntimeError(f"provider {config.name!r} 不支持按店铺采集（当前仅 EchoTik 支持）")
+        page_size = 10  # seller/product/list caps page_size at 10
+        collected: list[Product] = []
+        for page in range(1, self.pages + 1):
+            if limit and len(collected) >= limit:
+                break
+            params = {
+                "seller_id": self.seller_id,
+                "region": self.region,
+                "page_num": page,
+                "page_size": page_size,
+            }
+            url = base + config.shop_products_path + "?" + urlencode(params)
+            logger.info("crawling shop products: %s", url)
+            payload = self._request_json(url, config)
+            items = _as_list(payload, config.items_path)
+            if not items:
+                break
+            for item in items:
+                product = self.normalize_item(item, keyword="", category=None)
+                if product:
+                    if not product.seller_id:
+                        product = replace(product, seller_id=self.seller_id)
+                    collected.append(product)
+        return collected[:limit] if limit else collected
 
     def _enrich_details(self, config: ProviderConfig, base: str,
                         products: list[Product]) -> list[Product]:
