@@ -128,7 +128,7 @@ def generate_products(count: int = 200, category: str | None = None, seed: int =
     return products
 
 
-def generate_history(products: list[Product], days: int = 14, points: int = 6, seed: int = 7) -> list[tuple]:
+def generate_history(products: list[Product], days: int = 40, points: int = 8, seed: int = 7) -> list[tuple]:
     """为商品生成历史快照（过去 N 天销量逐步增长），用于趋势图演示。"""
     rng = random.Random(seed)
     now = datetime.now(timezone.utc)
@@ -139,11 +139,11 @@ def generate_history(products: list[Product], days: int = 14, points: int = 6, s
             t = now - timedelta(days=days * (points - k) / points)
             base = (k + 1) / points
             if trend == "up":
-                ratio = base * rng.uniform(0.85, 1.0)
+                ratio = base ** 3 * rng.uniform(0.9, 1.0)   # 陡峭增长：近7天贡献主要增量
             elif trend == "flat":
-                ratio = 0.97 + 0.03 * base + rng.uniform(-0.01, 0.01)
-            else:  # down：从 1.25 倍回落到 1.0 倍
-                ratio = (1.25 - 0.25 * base) * rng.uniform(0.97, 1.03)
+                ratio = 0.85 + 0.15 * base + rng.uniform(-0.02, 0.02)
+            else:  # down：从 1.2 倍回落到 1.0 倍
+                ratio = (1.2 - 0.2 * base) * rng.uniform(0.96, 1.04)
             if k == points - 1:
                 ratio = 1.0
             sold = max(0, int(p.sold_count * ratio))

@@ -110,7 +110,7 @@ def cmd_run(args, settings: Settings) -> int:
         return 1
     db = _get_db(args, settings)
     try:
-        report_path = run_pipeline(
+        report_path, used_source = run_pipeline(
             db, settings, demo=False, source=source, keyword=args.keyword,
             product_count=args.products, limit=args.limit, seed=getattr(args, "seed", None),
             proxy=args.proxy, category=args.category,
@@ -133,7 +133,7 @@ def cmd_run(args, settings: Settings) -> int:
     print()
     print("=" * 60)
     print("全流程完成 [OK]")
-    print(f"  数据源: {source}")
+    print(f"  数据源: {used_source}" + ("" if used_source == source else f"（请求 {source}）"))
     print(f"  HTML 看板: {report_path}")
     print(f"  Top 商品 CSV: {report_path.parent / 'top_products.csv'}")
     print(f"  数据规模: {db.stats()}")
@@ -373,6 +373,52 @@ def cmd_live(args, settings: Settings) -> int:
 
 
 
+def cmd_catinsight(args, settings: Settings) -> int:
+    from ttshop.analysis.category import category_insights
+
+    db = _get_db(args, settings)
+    rows = category_insights(db.products(), db.latest_trends(limit=9999))
+    if not rows:
+        print("暂无商品数据，先运行: python main.py seed --products 300")
+        return 0
+    print("类目洞察（按蓝海指数降序，>=50 为机会类目）:")
+    print(f"{'类目':<26}{'商品':>5}{'近7天销量':>10}{'增速':>8}{'CR4':>7}{'均评论':>7}{'蓝海指数':>9}  标记")
+    for r in rows:
+        flag = " ★机会类目" if r["is_opportunity"] else ""
+        print(f"{r['category'][:24]:<26}{r['product_cnt']:>5}{r['avg_sold_7d']:>10,.0f}"
+              f"{r['avg_growth_7d']:>7.1f}x{r['cr4']:>7.0%}{r['avg_reviews']:>7.0f}"
+              f"{r['blue_ocean']:>9.1f}  {flag}")
+    return 0
+
+
+def cmd_changes(args, settings: Settings) -> int:
+    from ttshop.analysis.changes import compute_changes
+
+    db = _get_db(args, settings)
+    changes = compute_changes(db)
+    print(f"今日变动汇总（新上架 {len(changes['new'])} / 价格异动 {len(changes['price'])} / 销量激增 {len(changes['surge'])}）")
+    print()
+    if changes["new"]:
+        print("新上架（今日新入库）:")
+        for i, r in enumerate(changes["new"], 1):
+            print(f"{i:>2}. {r['title'][:38]:<40} {r['category'][:18]:<20} "
+                  f"${r['price']:.2f}  已售 {r['sold_count']:,}")
+        print()
+    if changes["price"]:
+        print("价格异动 Top（最近两次快照）:")
+        for i, r in enumerate(changes["price"], 1):
+            arrow = "涨" if r["pct"] > 0 else "降"
+            print(f"{i:>2}. {r['title'][:38]:<40} {arrow} {r['pct']:+.1f}%  "
+                  f"${r['old_price']:.2f} -> ${r['new_price']:.2f}")
+        print()
+    if changes["surge"]:
+        print("销量激增 Top（7天增速 >= 1.5x）:")
+        for i, r in enumerate(changes["surge"], 1):
+            print(f"{i:>2}. {r['title'][:38]:<40} 近7天 {r['sold_7d']:>8,}  增速 {r['growth_7d']:.2f}x")
+    return 0
+
+
+
 def cmd_categories(args, settings: Settings) -> int:
     from ttshop.sources import ApiSource
 
@@ -447,7 +493,7 @@ def cmd_schedule(args, settings: Settings) -> int:
 
 
 def _add_source_args(parser) -> None:
-    parser.add_argument("--source", choices=["demo", "scraper", "api"], default=None,
+    parser.add_argument("--source", choices=["demo", "scraper", "api", "auto"], default=None,
                         help="数据源：demo / scraper / api（默认：有 --keyword 用 scraper，否则 demo）")
     parser.add_argument("--proxy", default=None, help="代理地址（scraper 源），如 socks5://127.0.0.1:40000")
     parser.add_argument("--provider", default=None, help="第三方数据平台（api 源），如 kalodata/echotik/fastmoss")
@@ -491,6 +537,13 @@ def main(argv: list[str] | None = None) -> int:
     p_trend = sub.add_parser("trend", help="计算趋势与爆品预测（7天/30天增速、新品检测、爆品指数）")
     p_trend.add_argument("--limit", type=int, default=15)
     p_trend.set_defaults(func=cmd_trend)
+
+
+    p_catinsight = sub.add_parser("catinsight", help="类目洞察：规模/近7天销量/增速/集中度CR4/蓝海指数")
+    p_catinsight.set_defaults(func=cmd_catinsight)
+
+    p_changes = sub.add_parser("changes", help="今日变动：新上架 / 价格异动 / 销量激增（对比昨日）")
+    p_changes.set_defaults(func=cmd_changes)
 
     p_categories = sub.add_parser("categories", help="浏览/搜索 TikTok Shop 类目树（EchoTik）并获取类目ID")
     p_categories.add_argument("--search", default=None, help="按名称搜索类目，例如 瑜伽 / home / kitchen")

@@ -9,6 +9,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from ..analysis.alerts import ALERT_LABELS
+from ..analysis.category import category_insights
+from ..analysis.changes import compute_changes
 from ..analysis.shop import ensure_shop_watch
 from ..db import Database
 
@@ -280,15 +282,20 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
         for a in analysis[:10]
     ]
 
+    cat_insights = category_insights(products, db.latest_trends(limit=9999))
     cat_table = "\n".join(
         f"<tr><td>{_esc(r['category'])}</td>"
-        f"<td class='num'>{r['count']}</td>"
+        f"<td class='num'>{r['product_cnt']}</td>"
         f"<td class='num'>{_money(r['avg_price'], symbol)}</td>"
-        f"<td class='num'>{r['avg_sold']:,.0f}</td>"
-        f"<td class='num'>{r['avg_rating']:.1f}</td>"
-        f"<td class='num'><span class='badge'>{opp_by_cat.get(r['category'], 0)}</span></td></tr>"
-        for r in cat_rows
-    )
+        f"<td class='num'>{r['avg_sold_7d']:,.0f}</td>"
+        f"<td class='num'>{r['avg_growth_7d']:.1f}x</td>"
+        f"<td class='num'>{r['cr4']:.0%}</td>"
+        f"<td class='num'>{r['avg_reviews']:.0f}</td>"
+        f"<td class='num'>{r['blue_ocean']:.0f}</td>"
+        + ("<td><span class='badge'>机会类目</span></td>" if r["is_opportunity"] else "<td></td>")
+        + "</tr>"
+        for r in cat_insights
+    ) if cat_insights else "<tr><td colspan='9'>暂无类目数据</td></tr>"
 
     trend_map = {t["product_id"]: t for t in db.latest_trends(limit=500)}
     for a in analysis:
@@ -428,6 +435,26 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
         for i, r in enumerate(video_rows, 1)
     ) if video_rows else "<tr><td colspan='5'>暂无视频数据</td></tr>"
 
+    _changes = compute_changes(db)
+    _change_items: list[tuple[str, str, str, str]] = []
+    for _r in _changes["new"][:8]:
+        _change_items.append(("新上架", _r.get("title") or "", _r.get("category") or "",
+                              f"已售 {int(_r.get('sold_count') or 0):,} · 上架 {(_r.get('first_seen_at') or '')[:10]}"))
+    for _r in _changes["price"][:8]:
+        _arrow = "▲ 涨价" if _r["pct"] > 0 else "▼ 降价"
+        _change_items.append(("价格异动", _r.get("title") or "", _r.get("category") or "",
+                              f"{_arrow} {_r['pct']:+.1f}%  ${_r['old_price']:.2f} → ${_r['new_price']:.2f}"))
+    for _r in _changes["surge"][:8]:
+        _change_items.append(("销量激增", _r.get("title") or "", _r.get("category") or "",
+                              f"近7天 {int(_r.get('sold_7d') or 0):,} · 增速 {_r.get('growth_7d') or 0:.2f}x"))
+    change_table = "\n".join(
+        f"<tr><td><span class='badge'>{_esc(t)}</span></td>"
+        f"<td title='{_esc(title)}'>{_esc(_short(title, 40))}</td>"
+        f"<td><span class='tag'>{_esc(_short(cat, 16))}</span></td>"
+        f"<td>{_esc(detail)}</td></tr>"
+        for t, title, cat, detail in _change_items
+    ) if _change_items else "<tr><td colspan='4'>今日暂无状态变化</td></tr>"
+
     body = f"""
 <header>
   <h1>TikTok Shop 爆品监测与选品分析看板</h1>
@@ -457,9 +484,17 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
 </section>
 
 <section class="panel">
-  <h2>类目洞察</h2>
+  <h2>今日变动（新上架 / 价格异动 / 销量激增）</h2>
   <div class="scroll"><table>
-    <tr><th>类目</th><th class="num">商品数</th><th class="num">均价</th><th class="num">平均销量</th><th class="num">平均评分</th><th class="num">高潜商品</th></tr>
+    <tr><th>类型</th><th>商品</th><th>类目</th><th>说明</th></tr>
+    {change_table}
+  </table></div>
+</section>
+
+<section class="panel">
+  <h2>类目洞察（规模 / 增速 / 集中度 / 蓝海指数）</h2>
+  <div class="scroll"><table>
+    <tr><th>类目</th><th class="num">商品数</th><th class="num">均价</th><th class="num">近7天销量</th><th class="num">增速</th><th class="num">CR4集中度</th><th class="num">平均评论</th><th class="num">蓝海指数</th><th>标记</th></tr>
     {cat_table}
   </table></div>
 </section>

@@ -5,7 +5,7 @@
 
 ## 特性
 - 数据管道：商品库 + 价格/销量历史快照 + 分析快照，分层存储（SQLite）。
-- 可插拔数据源：demo（模拟）/ scraper（Playwright 采集）/ api（第三方数据 API），管道层与数据来源解耦。
+- 可插拔数据源：demo（模拟）/ scraper（Playwright 采集）/ api（第三方数据 API）/ auto（多源故障切换），管道层与数据来源解耦。
 - 选品评分：需求度（销量+视频播放）× 竞争度（评论稀疏度）× 利润（跨境小包直发毛利模型）。
 - 可视化：自包含 HTML 看板（离线可打开），含类目销量、选品评分、销量趋势图与爆品榜。
 - 定时调度：每日自动采集 → 分析 → 出报告（标准库实现零依赖，支持 Windows 任务计划程序一键注册）。
@@ -45,11 +45,13 @@ python main.py report
 | `demo` | 本地生成模拟美区商品数据，零依赖 | 演示全流程、CI、面试 Demo |
 | `scraper` | Playwright 真实采集 TikTok Shop 搜索页 | 少量自采、验证反爬思路 |
 | `api` | 对接第三方数据平台开放接口 | 生产环境、稳定批量数据 |
+| `auto` | EchoTik API → FastMoss API → demo 自动故障切换（任一成功即停止） | 每日定时任务、无人值守 |
 
 ```bash
 python main.py run --source demo --products 200              # 模拟数据
 python main.py run --source scraper --keyword "yoga mat"     # Playwright 采集
 python main.py run --source api --keyword "yoga mat" --api-key xxx
+python main.py run --source auto --category-id 603084 --pages 5   # 多源自动故障切换
 ```
 
 第三方 API 平台（Kalodata / EchoTik / FastMoss 等）注册账号后一般有免费额度：
@@ -128,6 +130,12 @@ python main.py shops rm <sellerId>                # 移除关注店铺
 # 12) 直播/短视频带货榜：直播场次销售数据（demo 生成器；第三方 live 接口可在 sources/api.py 扩展）
 python main.py live                               # 采集直播场次并查看直播带货榜（按 GMV）
 
+# 13) 类目洞察：规模 / 近7天销量 / 增速 / CR4集中度 / 蓝海指数（run 全流程自动计算）
+python main.py catinsight                          # 查看类目洞察与机会类目
+
+# 14) 今日变动：新上架 / 价格异动 / 销量激增（对比昨日状态）
+python main.py changes                             # 查看今日变动汇总
+
 # 9) 监控告警：每日异动检测（降价/爆量/新品上榜/店铺上新）+ 导出 + 推送（run 全流程自动检测）
 python main.py alerts                                        # 查看今日异动
 python main.py alerts --min-surge 200 --growth 2             # 调高异动阈值
@@ -144,7 +152,7 @@ python main.py alerts --webhook https://oapi.dingtalk.com/robot/send?access_toke
   7天增速、新品检测、爆品指数、未来7/30天销量预测、生命周期（导入/成长/成熟/衰退）与选品推荐理由。
 - 店铺（`sellers` 聚合 + `shop_watch` 关注池）：卖家商品数/累计销量/GMV/均价、关注店铺上新检测与告警。
 - 直播（`live_sessions`）：直播场次 GMV/销量/峰值观看/时长，直播带货榜；短视频热度榜按视频播放量排序。
-看板已包含商品/类目/达人/关键词/爆品预测/店铺监控/内容带货榜七个维度。
+看板已包含商品/类目/达人/关键词/爆品预测/店铺监控/内容带货榜/今日变动八个维度；类目洞察含蓝海指数（增速×分散度×进入门槛×市场量级，>=50 为机会类目）。
 
 ## 常用命令
 ```bash

@@ -170,7 +170,7 @@ class PipelineSourceTest(unittest.TestCase):
     def test_pipeline_demo_source(self):
         db = Database(self.settings.db_path)
         db.init_schema()
-        report = run_pipeline(db, self.settings, source="demo", product_count=20, seed=1)
+        report, _ = run_pipeline(db, self.settings, source="demo", product_count=20, seed=1)
         self.assertTrue(report.exists())
         stats = db.stats()
         self.assertEqual(stats["products"], 20)
@@ -179,7 +179,7 @@ class PipelineSourceTest(unittest.TestCase):
     def test_pipeline_demo_flag_maps_to_demo_source(self):
         db = Database(self.settings.db_path)
         db.init_schema()
-        report = run_pipeline(db, self.settings, demo=True, product_count=10, seed=1)
+        report, _ = run_pipeline(db, self.settings, demo=True, product_count=10, seed=1)
         self.assertTrue(report.exists())
         self.assertEqual(db.stats()["products"], 10)
 

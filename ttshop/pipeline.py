@@ -64,7 +64,8 @@ def run_pipeline(db: Database, settings: Settings, demo: bool = False,
     sellers, shop_alerts = compute_shop_alerts(db)
     alerted = compute_alerts(db)
     report_path = Path(settings.report_dir) / "tiktok_shop_report.html"
-    build_report(db, settings, report_path, source=source)
-    logger.info("分析 %d 条，趋势 %d 条，预测 %d 条，竞品 %d 条，店铺 %d 家，今日异动 %d 条，报告已生成: %s",
-                analyzed, trended, forecasted, competitors, sellers, alerted, report_path)
-    return report_path
+    used_source = getattr(data_source, "used_source", None) or source
+    build_report(db, settings, report_path, source=used_source)
+    logger.info("分析 %d 条，趋势 %d 条，预测 %d 条，竞品 %d 条，店铺 %d 家，今日异动 %d 条，实际数据源 %s，报告已生成: %s",
+                analyzed, trended, forecasted, competitors, sellers, alerted, used_source, report_path)
+    return report_path, used_source

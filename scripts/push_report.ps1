@@ -1,7 +1,7 @@
 ﻿# push_report.ps1 - 本地多源采集 + 生成看板 + 自动推送 GitHub（零成本每日任务）
 # 由 scripts/install_task.ps1 注册为 Windows 计划任务，或手动执行：
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\push_report.ps1
-# 数据源优先级：EchoTik 类目采集 -> FastMoss 关键词兜底 -> demo 演示数据
+# 数据源优先级：EchoTik API -> FastMoss API -> demo（main.py --source auto 自动故障切换）
 # Key 存放（均已 gitignore）：
 #   data/api_key.txt       = EchoTik 的 Base64(Basic 凭据)
 #   data/fastmoss_key.txt  = FastMoss 的 client_secret
@@ -45,22 +45,19 @@ if ($FmKey)   { Log "FastMoss Key 已加载（作为兜底数据源）" } else {
 $script:finalSource = "demo"
 Log "===== 开始每日采集与推送 ====="
 
-# 1) 商品采集：EchoTik 类目 -> FastMoss 关键词 -> demo
-Step "商品采集（EchoTik 类目 -> FastMoss -> demo）" {
-    $ok = $false
-    if ($EchoKey) {
-        & $Python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich @echoArgs
-        if ($LASTEXITCODE -eq 0) { $ok = $true } else { Log "    EchoTik 类目失败（可能额度用尽），尝试 FastMoss" }
+# 1) 商品采集：--source auto 自动故障切换（EchoTik API -> FastMoss API -> demo）
+Step "商品采集（auto: EchoTik -> FastMoss -> demo）" {
+    & $Python main.py run --source auto --category-id 603084 --pages 5 --sort sales7d --enrich @echoArgs
+    if ($LASTEXITCODE -eq 0) {
+        if (Select-String -LiteralPath "reports\tiktok_shop_report.html" -Pattern "数据源：api" -Quiet) {
+            $script:finalSource = "api"
+            Log "    实际数据源: api"
+        } else {
+            Log "    实际数据源: demo"
+        }
+    } else {
+        Log "    !!! auto 全链路失败"
     }
-    if (-not $ok -and $FmKey) {
-        & $Python main.py run --source api --keyword "yoga mat" --limit 50 --provider fastmoss --api-key $FmKey
-        if ($LASTEXITCODE -eq 0) { $ok = $true } else { Log "    FastMoss 失败，将降级 demo" }
-    }
-    if (-not $ok) {
-        & $Python main.py run --source demo --products 300
-        if ($LASTEXITCODE -ne 0) { Log "    !!! demo 也失败" }
-    }
-    if ($ok) { $script:finalSource = "api" }
 }
 
 # 2-4) EchoTik 扩展采集（关键词/达人/飙升关键词，仅在 EchoTik Key 存在时尝试）
