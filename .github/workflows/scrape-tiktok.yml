@@ -105,9 +105,10 @@ jobs:
           n = con.execute("select count(*) from products").fetchone()[0]
           titles = [r[0] for r in con.execute("select title from products limit 5")]
           con.close()
+          rows = con.execute("select product_id, title, price, sold_count, rating, seller_name from products limit 8").fetchall()
           print("DB_PRODUCTS=" + str(n))
-          for t in titles:
-              print("  sample:", (t or "")[:60])
+          for r in rows:
+              print("  sample:", r)
           if n == 0:
               raise SystemExit(1)
           PY

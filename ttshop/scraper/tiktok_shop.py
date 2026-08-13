@@ -1,16 +1,15 @@
-"""TikTok Shop 真实采集器（基于 Playwright）。
+"""TikTok Shop ???????? Playwright??
 
-说明：
-- TikTok 反爬较强（X-Bogus/MsToken 签名、滑块、行为风控），页面结构也经常改版。
-- 本实现优先从页面内嵌的 __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON 提取商品数据，
-  失败时回退到 DOM 选择器。
-- 使用前请安装：pip install playwright && playwright install chromium
-- 建议使用目标区域（美区）代理，控制抓取频率，并在当地低峰时段运行。
+???
+- TikTok ?????X-Bogus/MsToken ??????????????????????
+- ??????? shop.tiktok.com ??????????? DOM ??????
+  ???/??/??/??/???/????????? JSON ????????
+- ???????pip install playwright && playwright install chromium
+- ????????????????????
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 import re
@@ -20,36 +19,55 @@ from ..models import Product
 
 logger = logging.getLogger(__name__)
 
-# 搜索页地址模板（TikTok Shop 会随版本调整，失效时更新）
-SEARCH_URL_TEMPLATE = "https://www.tiktok.com/shop/tt4b/search?q={keyword}&region={region}"
-# 页面内嵌数据脚本（比 CSS 选择器稳定）
-DATA_SCRIPT_ID = "__UNIVERSAL_DATA_FOR_REHYDRATION__"
+# ????????TikTok Shop ?????????????
+SEARCH_URL_TEMPLATE = "https://shop.tiktok.com/{region_lower}/s?q={keyword}"
 
-TITLE_KEYS = ["title", "name", "productTitle"]
-PRICE_KEYS = ["price", "salePrice"]
-SOLD_KEYS = ["sales", "sold", "soldCount", "salesCount"]
-RATING_KEYS = ["rating", "ratingScore"]
-REVIEW_KEYS = ["reviewCount", "reviews", "ratingCount"]
-SELLER_KEYS = ["sellerName", "shopName", "seller"]
-SELLER_ID_KEYS = ["sellerId", "shopId"]
-PRODUCT_ID_KEYS = ["productId", "id", "itemId"]
+# ?????????????? JS??? [{href, title, text, img}]
+_CARDS_JS = """() => {
+  const out = [];
+  const seen = new Set();
+  const links = Array.from(document.querySelectorAll('a[href*="/pdp/"]'));
+  for (const a of links) {
+    const href = a.href || a.getAttribute('href') || '';
+    if (!href || seen.has(href)) continue;
+    seen.add(href);
+    let card = a;
+    for (let i = 0; i < 8; i++) {
+      card = card.parentElement;
+      if (!card) break;
+      const t = card.innerText || '';
+      if (t.includes('$') && card.querySelector('img')) break;
+    }
+    const titleEl = a.querySelector('h3') || a;
+    const imgEl = card ? card.querySelector('img') : null;
+    out.push({
+      href: href,
+      title: (titleEl.innerText || a.getAttribute('title') || '').trim(),
+      text: card ? (card.innerText || '') : '',
+      img: imgEl ? (imgEl.currentSrc || imgEl.src || '') : ''
+    });
+  }
+  return out;
+}
+"""
 
-
-def _first(d: dict, keys: list[str], default=None):
-    for k in keys:
-        if k in d and d[k] not in (None, ""):
-            return d[k]
-    return default
+# ??????????????????/???
+_BADGE_WORDS = {
+    "free", "shipping", "coupon", "best", "seller", "low", "stock",
+    "hot", "top", "sold", "out", "in", "new", "deal", "order",
+    "save", "off", "sale", "today", "now", "only", "left", "add",
+    "cart", "favorite", "ship", "24h", "24hrs",
+}
 
 
 def _parse_sold(value) -> int:
-    """解析 '2.3K' / '1.2M' / 1234 这类销量文本。"""
+    """?? '2.3K' / '1.2M' / 1234 ???????"""
     if value is None:
         return 0
     if isinstance(value, (int, float)):
         return int(value)
     text = str(value).strip().replace(",", "")
-    m = re.match(r"([\d.]+)\s*([KkMm万]?)", text)
+    m = re.match(r"([\d.]+)\s*([KkMm?]?)", text)
     if not m:
         return 0
     num = float(m.group(1))
@@ -58,13 +76,38 @@ def _parse_sold(value) -> int:
         num *= 1000
     elif unit == "m":
         num *= 1_000_000
-    elif unit == "万":
+    elif unit == "?":
         num *= 10_000
     return int(num)
 
 
+def _region_path(region: str) -> str:
+    """US -> us??? URL ???"""
+    return (region or "US").strip().lower()[:2]
+
+
+def _extract_seller(text: str, title: str) -> str:
+    """?????????????????????/?????????"""
+    if not title:
+        return ""
+    idx = text.find(title)
+    if idx < 0:
+        return ""
+    before = text[:idx]
+    tokens = [t.strip(" .??|,;:") for t in re.split(r"\s+", before) if t.strip()]
+    picked: list[str] = []
+    for t in reversed(tokens):
+        key = t.lower().strip(".")
+        if key in _BADGE_WORDS or re.fullmatch(r"[\d.,KkM%$???+-]+", key):
+            break
+        picked.append(t)
+        if len(picked) >= 3:
+            break
+    return " ".join(reversed(picked))[:80]
+
+
 class TikTokShopScraper:
-    """基于 Playwright 的 TikTok Shop 商品采集器。"""
+    """?? Playwright ? TikTok Shop ??????"""
 
     def __init__(self, region: str = "US", headless: bool = True, slow_mo_ms: int = 800,
                  max_products_per_run: int = 100, proxy: str | None = None):
@@ -75,7 +118,7 @@ class TikTokShopScraper:
         self.proxy = proxy
 
     def _browser(self):
-        from playwright.sync_api import sync_playwright  # 延迟导入，demo 模式无需安装
+        from playwright.sync_api import sync_playwright  # ?????demo ??????
         playwright = sync_playwright().start()
         browser = playwright.chromium.launch(headless=self.headless, slow_mo=self.slow_mo_ms)
         context_kwargs = dict(
@@ -91,88 +134,92 @@ class TikTokShopScraper:
 
     def scrape_search(self, keyword: str, limit: int | None = None) -> list[Product]:
         limit = limit or self.max_products_per_run
-        url = SEARCH_URL_TEMPLATE.format(keyword=quote(keyword), region=self.region)
-        logger.info("开始采集: %s", url)
+        url = SEARCH_URL_TEMPLATE.format(region_lower=_region_path(self.region),
+                                         keyword=quote(keyword))
+        logger.info("????: %s", url)
 
         playwright, browser, context = self._browser()
         products: list[Product] = []
         try:
             page = context.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            try:
+                page.wait_for_selector('a[href*="/pdp/"]', timeout=30_000)
+            except Exception:
+                logger.warning("??????????????????????")
             page.wait_for_timeout(2_000)
 
             seen: set[str] = set()
-            for _ in range(20):
-                for item in self._extract_from_data_script(page):
-                    p = self._parse_item(item, keyword)
-                    if p and p.product_id not in seen:
-                        seen.add(p.product_id)
-                        products.append(p)
+            stale = 0
+            for _ in range(30):
+                try:
+                    cards = page.evaluate(_CARDS_JS)
+                except Exception as exc:
+                    logger.warning("????????: %s", exc)
+                    break
+                new_count = 0
+                for card in cards:
+                    product = self._parse_card(card, keyword)
+                    if product and product.product_id not in seen:
+                        seen.add(product.product_id)
+                        products.append(product)
+                        new_count += 1
                 if len(products) >= limit:
                     break
-                page.mouse.wheel(0, 1_200)
-                page.wait_for_timeout(random.randint(800, 2_000))
+                if new_count == 0:
+                    stale += 1
+                    if stale >= 4:
+                        break
+                else:
+                    stale = 0
+                page.mouse.wheel(0, 1_500)
+                page.wait_for_timeout(random.randint(1_200, 2_500))
         finally:
             browser.close()
             playwright.stop()
 
-        logger.info("采集完成: %d 条", len(products))
+        logger.info("????: %d ?", len(products))
         return products[:limit]
 
-    def _extract_from_data_script(self, page) -> list[dict]:
-        """从页面内嵌 JSON 中提取商品数据（对结构变化最鲁棒）。"""
-        try:
-            raw = page.evaluate(f"document.getElementById('{DATA_SCRIPT_ID}')?.textContent")
-        except Exception as exc:  # 浏览器执行异常
-            logger.warning("读取内嵌数据失败: %s", exc)
-            return []
-        if not raw:
-            return []
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            logger.warning("内嵌 JSON 解析失败: %s", exc)
-            return []
-
-        # 商品数据通常嵌在 product / searchResult 等路径下，做宽松递归查找
-        found: list[dict] = []
-        stack = [payload]
-        while stack and len(found) < 50:
-            node = stack.pop()
-            if isinstance(node, dict):
-                if any(k in node for k in TITLE_KEYS) and any(k in node for k in PRICE_KEYS):
-                    found.append(node)
-                stack.extend(node.values())
-            elif isinstance(node, list):
-                stack.extend(node)
-        return found
-
-    def _parse_item(self, item: dict, keyword: str) -> Product | None:
-        try:
-            title = str(_first(item, TITLE_KEYS) or "").strip()
-            price = float(_first(item, PRICE_KEYS) or 0)
-            if not title or price <= 0:
-                return None
-            product_id = str(_first(item, PRODUCT_ID_KEYS) or "")
-            if not product_id:
-                # 没有稳定 ID 时用关键词 + 标题做键
-                product_id = f"kw-{keyword}-{abs(hash(title)) % 10**10}"
-            return Product(
-                product_id=product_id,
-                title=title,
-                category=item.get("categoryName") or item.get("category") or "Unknown",
-                price=round(price, 2),
-                original_price=round(float(_first(item, ["originalPrice", "listPrice"]) or price), 2),
-                sold_count=_parse_sold(_first(item, SOLD_KEYS)),
-                rating=float(_first(item, RATING_KEYS) or 0.0),
-                review_count=_parse_sold(_first(item, REVIEW_KEYS)),
-                seller_name=str(_first(item, SELLER_KEYS) or ""),
-                seller_id=str(_first(item, SELLER_ID_KEYS) or ""),
-                commission_rate=float(_first(item, ["commissionRate", "commission"]) or 0.0),
-                video_views=_parse_sold(_first(item, ["videoViews", "views"])),
-                video_likes=_parse_sold(_first(item, ["videoLikes", "likes"])),
-                listed_at=item.get("listedAt") or item.get("createTime") or "",
-            )
-        except (TypeError, ValueError) as exc:
-            logger.debug("解析商品失败: %s", exc)
+    def _parse_card(self, card: dict, keyword: str) -> Product | None:
+        text = card.get("text") or ""
+        title = (card.get("title") or "").strip()
+        if not title:
             return None
+
+        prices = re.findall(r"(?<!-)(?:US)?\$\s*([\d,]+\.?\d*)", text)
+        if not prices:
+            return None
+        price = float(prices[0].replace(",", ""))
+        original = float(prices[-1].replace(",", "")) if len(prices) > 1 else price
+        if original <= price:
+            original = price
+        if price <= 0:
+            return None
+
+        sold_m = re.search(r"([\d.,]+[KkMm?]?)\s*sold", text, re.IGNORECASE)
+        sold = _parse_sold(sold_m.group(1) if sold_m else 0)
+
+        rating_m = re.search(r"(?<![\d.])(\d\.\d)(?![\d.])", text)
+        rating = float(rating_m.group(1)) if rating_m else 0.0
+
+        href = card.get("href") or ""
+        id_m = re.search(r"/(\d{15,20})(?:[/?]|$)", href)
+        product_id = id_m.group(1) if id_m else f"kw-{keyword}-{abs(hash(href)) % 10**10}"
+
+        return Product(
+            product_id=product_id,
+            title=title,
+            category="Search:" + keyword,
+            price=round(price, 2),
+            original_price=round(original, 2),
+            sold_count=sold,
+            rating=rating,
+            review_count=0,
+            seller_name=_extract_seller(text, title),
+            seller_id="",
+            commission_rate=0.0,
+            video_views=0,
+            video_likes=0,
+            listed_at="",
+        )
