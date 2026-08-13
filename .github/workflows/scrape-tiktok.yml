@@ -1,0 +1,64 @@
+name: scrape-tiktok-experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "Search keyword"
+        required: false
+        default: "yoga mat"
+      limit:
+        description: "Max products to collect"
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps + Playwright Chromium
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Direct scrape TikTok Shop
+        run: |
+          python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
+
+      - name: Report result
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db_path = Path("data/tiktok_shop.db")
+          if not db_path.exists():
+              print("NO_DB: scraper did not write any data")
+              raise SystemExit(1)
+          con = sqlite3.connect(str(db_path))
+          n = con.execute("select count(*) from products").fetchone()[0]
+          titles = [r[0] for r in con.execute("select title from products limit 5")]
+          con.close()
+          print("DB_PRODUCTS=" + str(n))
+          for t in titles:
+              print("  sample:", (t or "")[:60])
+          if n == 0:
+              raise SystemExit(1)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scrape-result
+          path: |
+            data/tiktok_shop.db
+            reports/tiktok_shop_report.html

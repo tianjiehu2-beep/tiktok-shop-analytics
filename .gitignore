@@ -12,3 +12,4 @@ data/api_key.txt
 data/fastmoss_key.txt
 
 data/*.db.bak
+data/streamlit_secrets.txt
