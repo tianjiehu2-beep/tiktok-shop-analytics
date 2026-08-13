@@ -9,6 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from ..analysis.alerts import ALERT_LABELS
+from ..analysis.shop import ensure_shop_watch
 from ..db import Database
 
 
@@ -395,6 +396,38 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
         for i, r in enumerate(keywords, 1)
     ) if keywords else "<tr><td colspan='4'>暂无关键词数据（运行 python main.py keywords）</td></tr>"
 
+    ensure_shop_watch(db)
+    shop_listings = db.shop_new_listings(days=7, limit=15)
+    shop_list_rows = "\n".join(
+        f"<tr><td>{i}</td><td>{_esc(r['seller_name'])}</td>"
+        f"<td title='{_esc(r['title'])}'>{_esc(_short(r['title'], 36))}</td>"
+        f"<td class='num'>{_money(r['price'], symbol)}</td>"
+        f"<td class='num'>{r['sold_count']:,}</td>"
+        f"<td>{_esc((r['first_seen_at'] or '')[:10])}</td></tr>"
+        for i, r in enumerate(shop_listings, 1)
+    ) if shop_listings else (
+        "<tr><td colspan='6'>关注店铺近 7 天暂无新上架（运行 <code>python main.py shops add-top 5</code>）</td></tr>")
+
+    live_rows = db.top_live_sessions(limit=8)
+    live_rows_html = "\n".join(
+        f"<tr><td>{i}</td><td>{_esc(r['seller_name'])}</td>"
+        f"<td title='{_esc(r['live_title'])}'>{_esc(_short(r['live_title'], 22))}</td>"
+        f"<td title='{_esc(r['product_title'])}'>{_esc(_short(r['product_title'], 24))}</td>"
+        f"<td class='num'>{_money(r['gmv_amt'], symbol)}</td>"
+        f"<td class='num'>{r['sold_cnt']:,}</td>"
+        f"<td class='num'>{r['viewers_peak']:,}</td></tr>"
+        for i, r in enumerate(live_rows, 1)
+    ) if live_rows else "<tr><td colspan='7'>暂无直播数据（运行 <code>python main.py live</code>）</td></tr>"
+
+    video_rows = db.top_video_products(limit=8)
+    video_rows_html = "\n".join(
+        f"<tr><td>{i}</td><td title='{_esc(r['title'])}'>{_esc(_short(r['title'], 30))}</td>"
+        f"<td class='num'>{r['video_views']:,}</td>"
+        f"<td class='num'>{r['video_cnt']:,}</td>"
+        f"<td class='num'>{r['influencer_cnt']:,}</td></tr>"
+        for i, r in enumerate(video_rows, 1)
+    ) if video_rows else "<tr><td colspan='5'>暂无视频数据</td></tr>"
+
     body = f"""
 <header>
   <h1>TikTok Shop 爆品监测与选品分析看板</h1>
@@ -455,6 +488,14 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
   </table></div>
 </section>
 
+<section class="panel">
+  <h2>店铺监控（关注店铺 · 近7天新上架）</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>店铺</th><th>商品</th><th class="num">售价</th><th class="num">已售</th><th>上架日期</th></tr>
+    {shop_list_rows}
+  </table></div>
+</section>
+
 <section class="cols2">
   <div class="panel"><h2>带货达人榜（按GMV）</h2>
     <div class="scroll"><table>
@@ -466,6 +507,21 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
     <div class="scroll"><table>
       <tr><th>#</th><th>关键词</th><th class="num">视频数</th><th class="num">热度</th><th>7天趋势</th></tr>
       {kw_rows}
+    </table></div>
+  </div>
+</section>
+
+<section class="cols2">
+  <div class="panel"><h2>直播带货榜（近3天 · 按GMV）</h2>
+    <div class="scroll"><table>
+      <tr><th>#</th><th>店铺</th><th>直播主题</th><th>主推商品</th><th class="num">GMV</th><th class="num">销量</th><th class="num">峰值观看</th></tr>
+      {live_rows_html}
+    </table></div>
+  </div>
+  <div class="panel"><h2>短视频热度榜（按视频播放）</h2>
+    <div class="scroll"><table>
+      <tr><th>#</th><th>商品</th><th class="num">视频播放</th><th class="num">带货视频</th><th class="num">带货达人</th></tr>
+      {video_rows_html}
     </table></div>
   </div>
 </section>

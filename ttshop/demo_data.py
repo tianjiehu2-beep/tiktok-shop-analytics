@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from datetime import datetime, timedelta, timezone
 
-from .models import Product
+from .models import LiveSession, Product
 
 CATEGORY_PRICE_RANGE = {
     "Beauty & Personal Care": (6.0, 45.0),
@@ -56,6 +56,13 @@ MODIFIERS = [
 SELLER_PREFIX = ["TikTop", "Bloom", "Nova", "Luxe", "Urban", "Sunny", "Zest", "Coco", "Aura", "Hype"]
 SELLER_SUFFIX = ["Deals", "Store", "Picks", "Supply", "Market", "Boutique", "Hub", "Co", "Goods", "Studio"]
 
+# 头部店铺：demo 中少数店铺拥有多商品并持续上新，用于店铺监控演示
+STAR_SELLER_IDS = [f"US88{i:06d}" for i in range(8)]
+STAR_SELLER_NAMES = [
+    "StarShop Deals", "TrendNest Store", "MegaPick Supply", "ViralDeal Market",
+    "TopSell Boutique", "HotBox Goods", "RapidShip Hub", "PrimeFind Co",
+]
+
 
 def _pick(rng: random.Random, seq: list[str]) -> str:
     return seq[rng.randrange(len(seq))]
@@ -89,9 +96,17 @@ def generate_products(count: int = 200, category: str | None = None, seed: int =
         reviews = max(0, int((sold / rng.uniform(35, 90)) * rng.uniform(0.5, 1.5)))
         views = max(sold, int(sold * rng.uniform(3, 25)))
         likes = int(views * rng.uniform(0.01, 0.06))
-        listed_days = rng.randint(1, 365)
+        listed_days = rng.randint(0, 7) if rng.random() < 0.2 else rng.randint(1, 365)
+        if i < len(STAR_SELLER_IDS):
+            listed_days = rng.randint(0, 6)   # 头部店铺持续上新
         listed_at = (now - timedelta(days=listed_days)).date().isoformat()
-        seller = f"{_pick(rng, SELLER_PREFIX)} {_pick(rng, SELLER_SUFFIX)}"
+        if i < len(STAR_SELLER_IDS) or rng.random() < 0.3:
+            star_idx = i % len(STAR_SELLER_IDS)
+            seller = STAR_SELLER_NAMES[star_idx]
+            seller_id = STAR_SELLER_IDS[star_idx]
+        else:
+            seller = f"{_pick(rng, SELLER_PREFIX)} {_pick(rng, SELLER_SUFFIX)}"
+            seller_id = f"US{rng.randrange(10 ** 8):08d}"
         product = Product(
             product_id=f"TT{rng.randrange(10**11):011d}",
             title=f"{_pick(rng, ADJECTIVES)} {_pick(rng, NOUNS[cat])} {_pick(rng, MODIFIERS)}",
@@ -102,7 +117,7 @@ def generate_products(count: int = 200, category: str | None = None, seed: int =
             rating=_rating(rng),
             review_count=reviews,
             seller_name=seller,
-            seller_id=f"US{rng.randrange(10**8):08d}",
+            seller_id=seller_id,
             commission_rate=round(rng.uniform(0.05, 0.25), 3),
             video_views=views,
             video_likes=likes,
@@ -135,3 +150,39 @@ def generate_history(products: list[Product], days: int = 14, points: int = 6, s
             price = p.price * rng.uniform(0.97, 1.03)
             history.append((p.product_id, round(price, 2), sold, t.replace(microsecond=0).isoformat()))
     return history
+
+LIVE_TITLES = [
+    "Weekly Top Picks Live", "Flash Sale Livestream", "New Arrivals Showcase",
+    "Best Sellers Countdown", "Late Night Deals Live", "Staff Picks Livestream",
+    "Bundle Bonanza Live", "Trending Now Live", "Hot Picks Express",
+    "Clearance Steals Live",
+]
+
+
+def generate_live_sessions(products: list[Product], count: int = 24, seed: int = 11) -> list[LiveSession]:
+    """为现有商品生成模拟直播带货场次（近 3 天，GMV/销量/峰值观看/时长）。"""
+    rng = random.Random(seed)
+    now = datetime.now(timezone.utc)
+    products = [p if isinstance(p, dict) else p.to_dict() for p in products]
+    sessions: list[LiveSession] = []
+    for _ in range(count):
+        p = products[rng.randrange(len(products))]
+        hours_ago = rng.randint(1, 72)
+        price = p.get("price") or 10.0
+        gmv = round(price * rng.uniform(300, 6000), 2)
+        sold = max(10, int(gmv / price * rng.uniform(0.6, 1.4)))
+        sessions.append(LiveSession(
+            session_id=f"LIVE{rng.randrange(10 ** 10):010d}",
+            seller_name=p.get("seller_name") or "",
+            seller_id=p.get("seller_id") or "",
+            product_id=p.get("product_id") or "",
+            product_title=p.get("title") or "",
+            category=p.get("category") or "",
+            live_title=_pick(rng, LIVE_TITLES),
+            gmv_amt=gmv,
+            sold_cnt=sold,
+            viewers_peak=rng.randint(800, 60000),
+            duration_min=rng.randint(30, 240),
+            live_at=(now - timedelta(hours=hours_ago)).replace(microsecond=0).isoformat(),
+        ))
+    return sessions

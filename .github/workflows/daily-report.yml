@@ -27,6 +27,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: 运行单元测试
+        run: python -m unittest discover -s tests
+
       - name: 生成数据与看板
         run: |
           if [ -f reports/index.html ] && grep -q "数据源：api" reports/index.html 2>/dev/null; then

@@ -1,51 +1,51 @@
 ﻿rank,product_id,title,category,price,sold_count,sale_7d_cnt,sale_30d_cnt,gmv_total,influencer_cnt,video_cnt,trend_sold_7d,growth_7d,is_new,hot_score,rating,review_count,video_views,est_profit,est_margin,demand_score,competition_score,profit_score,selection_score
-1,TT35506483447,Premium Puzzle Set for Kids,Toys & Hobbies,31.99,3788,0,0,0,0,0,1429,0,0,43.5,4.1,39,58819,9.63,0.3012,100.0,100.0,100.0,100.0
-2,TT25475932485,Adjustable Bamboo Cutting Board Home Essentials,Home & Living,40.99,3082,0,0,0,0,0,0,0,0,0,4.3,46,49370,14.31,0.3492,100.0,100.0,100.0,100.0
-3,TT20057139351,Trendy Bath Mat Bundle of 3,Home & Living,51.99,2754,0,0,0,0,0,0,0,0,0,4.1,45,62541,20.03,0.3854,100.0,100.0,100.0,100.0
-4,TT37976253241,Viral LED Strip Lights for Office,Electronics & Accessories,69.99,2745,0,0,0,0,0,0,0,0,0,3.7,42,10977,29.39,0.42,100.0,100.0,100.0,100.0
-5,TT80643277994,Lightweight Foam Roller for Women,Sports & Outdoors,33.99,2729,0,0,0,0,0,0,0,0,0,4.9,40,35757,10.67,0.3141,100.0,100.0,100.0,100.0
-6,TT62521719146,Upgraded Resistance Bands for Office,Sports & Outdoors,48.99,2695,0,0,0,0,0,0,0,0,0,4.2,27,61646,18.47,0.3771,100.0,100.0,100.0,100.0
-7,TT18231669385,Portable Denim Jacket Gift Idea,Apparel & Accessories,31.99,2619,0,0,0,0,0,896,0,0,36.9,4.1,45,36373,9.63,0.3012,100.0,100.0,100.0,100.0
-8,TT00163078852,Lightweight Faux Leather Belt Gift Idea,Apparel & Accessories,36.99,2483,0,0,0,0,0,0,0,0,20.0,4.5,44,9994,12.23,0.3308,100.0,100.0,100.0,100.0
-9,TT51664219644,Portable Hiking Poles for Women,Sports & Outdoors,31.99,2351,0,0,0,0,0,31,0,0,18.8,4.3,48,12158,9.63,0.3012,100.0,100.0,100.0,100.0
-10,TT94657373244,Viral Vitamin C Serum for Women,Beauty & Personal Care,42.99,2333,0,0,0,0,0,840,0,0,36.5,4.0,37,19183,15.35,0.3572,100.0,100.0,100.0,100.0
-11,TT44881067419,Portable Silicone Mat for Office,Home & Living,52.99,2203,0,0,0,0,0,0,0,0,15.7,4.1,33,24707,20.55,0.3879,100.0,100.0,100.0,100.0
-12,TT80795453951,Ultra-Soft Adjustable Dumbbells for Women,Sports & Outdoors,41.99,2201,0,0,0,0,0,832,0,0,36.5,4.2,35,20132,14.83,0.3533,100.0,100.0,100.0,100.0
-13,TT14706969263,Trendy Vitamin C Serum Home Essentials,Beauty & Personal Care,43.99,2189,0,0,0,0,0,860,0,0,36.7,4.8,42,39063,15.87,0.3609,100.0,100.0,100.0,100.0
-14,TT82894389324,Adjustable Sports Cap Must-Have,Sports & Outdoors,47.99,2184,0,0,0,0,0,753,0,0,36.0,4.9,21,18687,17.95,0.3741,100.0,100.0,100.0,100.0
-15,TT63546324776,Upgraded Sports Cap Must-Have,Sports & Outdoors,33.99,2085,0,0,0,0,0,884,0,0,46.4,4.6,14,21442,10.67,0.3141,100.0,100.0,100.0,100.0
-16,TT31661713470,Viral Jump Rope for Office,Sports & Outdoors,34.99,2061,0,0,0,0,0,30,0,0,18.6,4.2,33,20842,11.19,0.3199,100.0,100.0,100.0,100.0
-17,TT12150035215,Premium Desk Lamp Must-Have,Home & Living,45.99,2037,0,0,0,0,0,0,0,0,10.6,5.0,27,37530,16.91,0.3678,100.0,100.0,100.0,100.0
-18,TT84298498501,Waterproof Throw Pillow Gift Idea,Home & Living,46.99,1937,0,0,0,0,0,0,0,0,0,4.1,33,27001,17.43,0.371,100.0,100.0,100.0,100.0
-19,TT23813554535,Viral Gym Gloves Bundle of 3,Sports & Outdoors,45.99,1915,0,0,0,0,0,0,0,0,8.9,4.5,46,24411,16.91,0.3678,100.0,100.0,100.0,100.0
-20,TT92954485765,Trendy Sweat Set for Women,Apparel & Accessories,31.99,1893,0,0,0,0,0,692,0,0,35.5,4.2,21,45830,9.63,0.3012,100.0,100.0,100.0,100.0
-21,TT92082135991,Premium Throw Pillow for Men,Home & Living,34.99,1783,0,0,0,0,0,23,0,0,17.2,4.5,30,12035,11.19,0.3199,100.0,100.0,100.0,100.0
-22,TT77276674748,Ultra-Soft Jump Rope Bundle of 3,Sports & Outdoors,47.99,1781,0,0,0,0,0,29,0,0,18.4,4.2,20,22313,17.95,0.3741,100.0,100.0,100.0,100.0
-23,TT78863013264,Portable Smart Watch for Kids,Electronics & Accessories,61.99,1741,0,0,0,0,0,624,0,0,35.0,4.3,26,12386,25.23,0.4071,100.0,100.0,100.0,100.0
-24,TT48288161998,Trendy Insulated Water Bottle for Travel,Sports & Outdoors,34.99,1718,0,0,0,0,0,690,0,0,35.5,4.8,24,18596,11.19,0.3199,100.0,100.0,100.0,100.0
-25,TT70530290984,Upgraded Polarized Sunglasses Must-Have,Apparel & Accessories,34.99,1709,0,0,0,0,0,0,0,0,0,4.4,44,28345,11.19,0.3199,100.0,100.0,100.0,100.0
-26,TT72945621211,Upgraded Wireless Earbuds Gift Idea,Electronics & Accessories,36.99,1679,0,0,0,0,0,0,0,0,0,4.1,27,25069,12.23,0.3308,100.0,100.0,100.0,100.0
-27,TT11006673822,Viral Bath Mat Gift Idea,Home & Living,38.99,1663,0,0,0,0,0,23,0,0,17.2,4.4,35,21150,13.27,0.3405,100.0,100.0,100.0,100.0
-28,TT68980274181,Viral Desk Lamp Bundle of 3,Home & Living,32.99,1581,0,0,0,0,0,636,0,0,35.0,4.6,25,13886,10.15,0.3078,100.0,100.0,100.0,100.0
-29,TT81516282264,Trendy Lip Gloss Set Home Essentials,Beauty & Personal Care,35.99,1572,0,0,0,0,0,8,0,0,11.9,4.6,21,22621,11.71,0.3255,100.0,100.0,100.0,100.0
-30,TT81747935203,Adjustable Hair Curler for Women,Beauty & Personal Care,37.99,1560,0,0,0,0,0,627,0,0,35.0,4.7,21,35342,12.75,0.3357,100.0,100.0,100.0,100.0
-31,TT24990385405,Portable Scented Candle Set with Storage Bag,Home & Living,47.99,1548,0,0,0,0,0,0,0,0,0,4.1,49,30490,17.95,0.3741,100.0,100.0,100.0,100.0
-32,TT35433031808,Viral Bamboo Cutting Board with Storage Bag,Home & Living,39.99,1533,0,0,0,0,0,1,0,0,3.8,4.5,29,21415,13.79,0.345,100.0,100.0,100.0,100.0
-33,TT88402060253,Ultra-Soft Resistance Bands with Storage Bag,Sports & Outdoors,37.99,1524,0,0,0,0,0,20,0,0,16.6,4.5,21,18853,12.75,0.3357,100.0,100.0,100.0,100.0
-34,TT42963187203,Upgraded Pilates Ring Gift Idea,Sports & Outdoors,36.99,1500,0,0,0,0,0,0,0,0,0,4.1,25,9985,12.23,0.3308,100.0,100.0,100.0,100.0
-35,TT56942088886,Waterproof Scented Candle Set for Women,Home & Living,40.99,1497,0,0,0,0,0,0,0,0,0,4.0,45,12020,14.31,0.3492,100.0,100.0,100.0,100.0
-36,TT83011481339,Portable Insulated Coffee Mug Home Essentials,Home & Living,41.99,1407,0,0,0,0,0,0,0,0,0,4.4,18,23379,14.83,0.3533,100.0,100.0,100.0,100.0
-37,TT53424127967,Trendy Spa Headband for Kids,Beauty & Personal Care,31.99,1395,0,0,0,0,0,21,0,0,16.8,3.8,20,11188,9.63,0.3012,100.0,100.0,100.0,100.0
-38,TT72121195885,Upgraded Insulated Coffee Mug Bundle of 3,Home & Living,49.99,1393,0,0,0,0,0,514,0,0,33.9,4.6,22,6041,18.99,0.38,100.0,100.0,100.0,100.0
-39,TT34769365489,Trendy Lip Gloss Set for Office,Beauty & Personal Care,34.99,1374,0,0,0,0,0,0,0,0,0.2,4.1,18,32197,11.19,0.3199,100.0,100.0,100.0,100.0
-40,TT28546131680,Viral Bath Mat Bundle of 3,Home & Living,47.99,1352,0,0,0,0,0,27,0,0,18.1,4.0,14,6507,17.95,0.3741,100.0,100.0,100.0,100.0
-41,TT51092108013,Trendy Foam Roller for Men,Sports & Outdoors,41.99,1337,0,0,0,0,0,567,0,0,34.5,4.6,15,14930,14.83,0.3533,100.0,100.0,100.0,100.0
-42,TT77555533944,Multi-Functional Vitamin C Serum for Travel,Beauty & Personal Care,33.99,1289,0,0,0,0,0,539,0,0,53.3,4.5,29,24292,10.67,0.3141,100.0,100.0,100.0,100.0
-43,TT18281548951,Premium Bluetooth Speaker for Travel,Electronics & Accessories,53.99,1263,0,0,0,0,0,0,0,0,0,4.5,19,14707,21.07,0.3903,100.0,100.0,100.0,100.0
-44,TT66417138467,Viral Non-Slip Yoga Mat for Office,Sports & Outdoors,49.99,1258,0,0,0,0,0,429,0,0,45.9,4.4,21,22526,18.99,0.38,100.0,100.0,100.0,100.0
-45,TT90489765379,Upgraded Skincare Kit for Kids,Beauty & Personal Care,37.99,1239,0,0,0,0,0,21,0,0,16.8,4.5,21,5750,12.75,0.3357,100.0,100.0,100.0,100.0
-46,TT21471158603,Trendy Bucket Hat for Travel,Apparel & Accessories,37.99,1237,0,0,0,0,0,0,0,0,4.1,4.5,38,29569,12.75,0.3357,100.0,100.0,100.0,100.0
-47,TT34290557946,Lightweight Storage Bins for Women,Home & Living,52.99,1233,0,0,0,0,0,481,0,0,33.5,4.6,45,6918,20.55,0.3879,100.0,100.0,100.0,100.0
-48,TT90080707198,Viral Car Phone Mount for Travel,Electronics & Accessories,58.99,1174,0,0,0,0,0,23,0,0,17.2,4.7,15,8219,23.67,0.4013,100.0,100.0,100.0,100.0
-49,TT04606873027,Adjustable Kitchen Organizer Must-Have,Home & Living,33.99,1166,0,0,0,0,0,15,0,0,15.1,4.4,6,12843,10.67,0.3141,100.0,100.0,100.0,100.0
-50,TT30890512968,Multi-Functional Yoga Leggings for Men,Apparel & Accessories,36.99,1130,0,0,0,0,0,471,0,0,37.5,4.6,15,20100,12.23,0.3308,100.0,100.0,100.0,100.0
+1,TT81088371193,Portable Spa Headband for Travel,Beauty & Personal Care,37.99,4317,0,0,0,0,0,0,0,0,0,4.2,36,21900,12.75,0.3357,100.0,100.0,100.0,100.0
+2,TT60447237783,Waterproof Car Phone Mount for Men,Electronics & Accessories,56.99,2751,0,0,0,0,0,1071,0,0,37.9,4.7,20,17670,22.63,0.3972,100.0,100.0,100.0,100.0
+3,TT28484290668,Adjustable Lip Gloss Set Home Essentials,Beauty & Personal Care,40.99,2716,0,0,0,0,0,0,0,0,0,3.9,45,15727,14.31,0.3492,100.0,100.0,100.0,100.0
+4,TT22299246608,Portable Smart Watch for Office,Electronics & Accessories,62.99,2544,0,0,0,0,0,0,0,0,4.8,4.3,47,12201,25.75,0.4089,100.0,100.0,100.0,100.0
+5,TT25114618694,Ultra-Soft Scented Candle Set for Travel,Home & Living,31.99,2367,0,0,0,0,0,1015,0,0,37.6,4.1,21,8403,9.63,0.3012,100.0,100.0,100.0,100.0
+6,TT20987252636,Adjustable Kitchen Organizer for Women,Home & Living,35.99,2225,0,0,0,0,0,857,0,0,36.6,4.1,30,43006,11.71,0.3255,100.0,100.0,100.0,100.0
+7,TT28502175396,Waterproof Throw Pillow for Men,Home & Living,34.99,2193,0,0,0,0,0,13,0,0,14.3,4.2,32,43370,11.19,0.3199,100.0,100.0,100.0,100.0
+8,TT53386649025,Premium Nail Polish Kit for Men,Beauty & Personal Care,34.99,2191,0,0,0,0,0,750,0,0,36.0,4.4,17,22351,11.19,0.3199,100.0,100.0,100.0,100.0
+9,TT30282766572,Waterproof Smart Watch Home Essentials,Electronics & Accessories,38.99,2052,0,0,0,0,0,0,0,0,0,4.1,33,42919,13.27,0.3405,100.0,100.0,100.0,100.0
+10,TT53788476143,Premium Car Phone Mount Must-Have,Electronics & Accessories,39.99,2007,0,0,0,0,0,9,0,0,32.5,4.1,26,40543,13.79,0.345,100.0,100.0,100.0,100.0
+11,TT69413669122,Lightweight Desk Lamp for Men,Home & Living,38.99,1937,0,0,0,0,0,771,0,0,36.1,4.0,33,27001,13.27,0.3405,100.0,100.0,100.0,100.0
+12,TT35609944294,Waterproof Car Phone Mount for Office,Electronics & Accessories,31.99,1774,0,0,0,0,0,0,0,0,20.0,4.0,26,25613,9.63,0.3012,100.0,100.0,100.0,100.0
+13,TT11382814289,Premium Vacuum Storage Bag for Men,Home & Living,50.99,1648,0,0,0,0,0,0,0,0,4.3,4.3,34,7724,19.51,0.3827,100.0,100.0,100.0,100.0
+14,TT59268785050,Waterproof Wireless Earbuds Home Essentials,Electronics & Accessories,56.99,1620,0,0,0,0,0,22,0,0,17.0,4.4,50,7088,22.63,0.3972,100.0,100.0,100.0,100.0
+15,TT57606861001,Ultra-Soft Throw Pillow Home Essentials,Home & Living,49.99,1607,0,0,0,0,0,22,0,0,17.0,4.6,30,13644,18.99,0.38,100.0,100.0,100.0,100.0
+16,TT09778902175,Upgraded Facial Roller for Men,Beauty & Personal Care,35.99,1572,0,0,0,0,0,22,0,0,17.0,4.5,21,22621,11.71,0.3255,100.0,100.0,100.0,100.0
+17,TT48575471919,Portable Faux Leather Belt Home Essentials,Apparel & Accessories,33.99,1550,0,0,0,0,0,645,0,0,36.0,4.5,35,38430,10.67,0.3141,100.0,100.0,100.0,100.0
+18,TT30299973795,Portable Mini Projector with Storage Bag,Electronics & Accessories,58.99,1518,0,0,0,0,0,0,0,0,0,4.4,31,14919,23.67,0.4013,100.0,100.0,100.0,100.0
+19,TT69271961298,Viral Crossbody Bag for Kids,Apparel & Accessories,36.99,1476,0,0,0,0,0,7,0,0,11.3,4.0,9,33566,12.23,0.3308,100.0,100.0,100.0,100.0
+20,TT96781263768,Viral Silicone Mat Bundle of 3,Home & Living,43.99,1412,0,0,0,0,0,554,0,0,43.4,4.2,20,28058,15.87,0.3609,100.0,100.0,100.0,100.0
+21,TT11451859368,Upgraded Portable Charger Gift Idea,Electronics & Accessories,53.99,1303,0,0,0,0,0,17,0,0,15.7,3.8,40,6836,21.07,0.3903,100.0,100.0,100.0,100.0
+22,TT77996786190,Adjustable Polarized Sunglasses for Women,Apparel & Accessories,37.99,1271,0,0,0,0,0,0,0,0,0,3.9,14,28871,12.75,0.3357,100.0,100.0,100.0,100.0
+23,TT32764990608,Viral Phone Stand for Men,Electronics & Accessories,33.99,1269,0,0,0,0,0,537,0,1,54.1,4.0,33,6838,10.67,0.3141,100.0,100.0,100.0,100.0
+24,TT83077210924,Upgraded Polarized Sunglasses for Men,Apparel & Accessories,33.99,1266,0,0,0,0,0,17,0,0,15.7,4.8,30,27164,10.67,0.3141,100.0,100.0,100.0,100.0
+25,TT05900751998,Multi-Functional Nail Polish Kit Gift Idea,Beauty & Personal Care,36.99,1252,0,0,0,0,0,475,0,0,40.4,4.8,25,4226,12.23,0.3308,100.0,100.0,100.0,100.0
+26,TT72184307665,Portable Phone Stand for Kids,Electronics & Accessories,63.99,1217,0,0,0,0,0,439,0,0,33.0,4.0,33,23291,26.27,0.4106,100.0,100.0,100.0,100.0
+27,TT76272012883,Upgraded Facial Roller for Kids,Beauty & Personal Care,39.99,1157,0,0,0,0,0,0,0,0,0,4.2,12,18577,13.79,0.345,100.0,100.0,100.0,100.0
+28,TT31558088409,Premium Laptop Sleeve Bundle of 3,Electronics & Accessories,66.99,1155,0,0,0,0,0,0,0,0,0,5.0,8,14266,27.83,0.4155,100.0,100.0,100.0,100.0
+29,TT23512231222,Portable Makeup Brush Set for Women,Beauty & Personal Care,39.99,1147,0,0,0,0,0,0,0,0,20.0,4.9,42,27481,13.79,0.345,100.0,100.0,100.0,100.0
+30,TT37207362626,Lightweight Denim Jacket with Storage Bag,Apparel & Accessories,35.99,1138,0,0,0,0,0,0,0,0,17.4,4.1,8,25006,11.71,0.3255,100.0,100.0,100.0,100.0
+31,TT73505662150,Portable Car Phone Mount with Storage Bag,Electronics & Accessories,52.99,1120,0,0,0,0,0,0,0,0,0,4.3,18,21736,20.55,0.3879,100.0,100.0,100.0,100.0
+32,TT99852926241,Trendy Bath Mat Must-Have,Home & Living,46.99,1008,0,0,0,0,0,414,0,0,32.8,4.5,14,19389,17.43,0.371,100.0,100.0,100.0,100.0
+33,TT54605179056,Adjustable LED Strip Lights for Kids,Electronics & Accessories,46.99,946,0,0,0,0,0,0,0,0,18.3,4.5,25,16102,17.43,0.371,100.0,100.0,100.0,100.0
+34,TT95065992780,Waterproof Gym Gloves Home Essentials,Sports & Outdoors,37.99,907,0,0,0,0,0,335,0,0,31.6,4.5,15,4843,12.75,0.3357,100.0,100.0,100.0,100.0
+35,TT80907892199,Lightweight Hair Curler Gift Idea,Beauty & Personal Care,43.99,869,0,0,0,0,0,0,0,0,7.4,4.4,14,3009,15.87,0.3609,100.0,100.0,100.0,100.0
+36,TT60579611575,Viral Silk Scarf for Office,Apparel & Accessories,31.99,711,0,0,0,0,0,11,0,0,33.5,3.8,6,14644,9.63,0.3012,100.0,100.0,100.0,100.0
+37,TT20082468528,Adjustable Lip Gloss Set for Travel,Beauty & Personal Care,36.99,690,0,0,0,0,0,0,0,0,0,4.2,9,13244,12.23,0.3308,100.0,100.0,100.0,100.0
+38,TT09745501230,Upgraded Cable Organizer Bundle of 3,Electronics & Accessories,63.99,680,0,0,0,0,0,0,0,0,0,4.2,12,14350,26.27,0.4106,100.0,100.0,100.0,100.0
+39,TT92929433682,Upgraded Nail Polish Kit for Travel,Beauty & Personal Care,40.99,666,0,0,0,0,0,0,0,0,0,4.9,5,9946,14.31,0.3492,100.0,100.0,100.0,100.0
+40,TT58408041390,Lightweight Vitamin C Serum Home Essentials,Beauty & Personal Care,43.99,638,0,0,0,0,0,0,0,0,0,4.5,11,2064,15.87,0.3609,100.0,100.0,100.0,100.0
+41,TT83874001552,Upgraded Bath Mat with Storage Bag,Home & Living,41.99,600,0,0,0,0,0,202,0,0,41.5,4.5,5,9212,14.83,0.3533,100.0,100.0,100.0,100.0
+42,TT42828317253,Ultra-Soft Gym Gloves for Men,Sports & Outdoors,49.99,597,0,0,0,0,0,0,0,0,20.0,5.0,5,11610,18.99,0.38,100.0,100.0,100.0,100.0
+43,TT89036104046,Waterproof Storage Bins Must-Have,Home & Living,53.99,586,0,0,0,0,0,7,0,0,11.3,4.9,9,14019,21.07,0.3903,100.0,100.0,100.0,100.0
+44,TT37848047335,Viral Jump Rope for Office,Sports & Outdoors,32.99,585,0,0,0,0,0,9,0,0,12.5,4.4,5,3647,10.15,0.3078,100.0,100.0,100.0,100.0
+45,TT03607350527,Portable Phone Stand for Women,Electronics & Accessories,69.99,569,0,0,0,0,0,0,0,0,20.0,4.1,14,10666,29.39,0.42,100.0,100.0,100.0,100.0
+46,TT07413994320,Lightweight Smart Watch for Travel,Electronics & Accessories,47.99,536,0,0,0,0,0,197,0,1,48.7,4.3,13,6766,17.95,0.3741,100.0,100.0,100.0,100.0
+47,TT81546908905,Trendy Resistance Bands for Kids,Sports & Outdoors,35.99,509,0,0,0,0,0,212,0,0,29.1,4.6,10,10266,11.71,0.3255,100.0,100.0,100.0,100.0
+48,TT78735845790,Adjustable Facial Roller Must-Have,Beauty & Personal Care,35.99,501,0,0,0,0,0,174,0,0,28.1,4.1,3,3702,11.71,0.3255,100.0,100.0,100.0,100.0
+49,TT07866707750,Trendy Vacuum Storage Bag for Office,Home & Living,42.99,474,0,0,0,0,0,186,0,0,28.4,4.3,4,5591,15.35,0.3572,100.0,100.0,100.0,100.0
+50,TT38344613753,Premium Facial Roller for Travel,Beauty & Personal Care,33.99,457,0,0,0,0,0,3,0,0,7.5,4.1,6,5684,10.67,0.3141,100.0,100.0,100.0,100.0

@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .models import Influencer, KeywordTrend, Product, utc_now
+from .models import Influencer, KeywordTrend, LiveSession, Product, utc_now
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
@@ -151,6 +152,44 @@ CREATE TABLE IF NOT EXISTS competitors (
     review_count     INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (product_id, competitor_id)
 );
+
+CREATE TABLE IF NOT EXISTS sellers (
+    seller_id     TEXT PRIMARY KEY,
+    seller_name   TEXT,
+    region        TEXT DEFAULT 'US',
+    rating        REAL NOT NULL DEFAULT 0,
+    product_cnt   INTEGER NOT NULL DEFAULT 0,
+    total_sold    INTEGER NOT NULL DEFAULT 0,
+    total_gmv     REAL NOT NULL DEFAULT 0,
+    avg_price     REAL NOT NULL DEFAULT 0,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shop_watch (
+    seller_id TEXT PRIMARY KEY,
+    added_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS live_sessions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id    TEXT NOT NULL,
+    seller_name   TEXT,
+    seller_id     TEXT,
+    product_id    TEXT,
+    product_title TEXT,
+    category      TEXT,
+    live_title    TEXT,
+    gmv_amt       REAL NOT NULL DEFAULT 0,
+    sold_cnt      INTEGER NOT NULL DEFAULT 0,
+    viewers_peak  INTEGER NOT NULL DEFAULT 0,
+    duration_min  INTEGER NOT NULL DEFAULT 0,
+    live_at       TEXT NOT NULL,
+    captured_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_at ON live_sessions (live_at);
+CREATE INDEX IF NOT EXISTS idx_sellers_sold ON sellers (total_sold DESC);
 """
 
 
@@ -444,6 +483,131 @@ class Database:
                    JOIN watch_items w ON w.product_id = c.product_id
                    JOIN products pw ON pw.product_id = w.product_id
                    ORDER BY c.sold_7d DESC LIMIT ?""", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+    def sync_sellers(self) -> int:
+        """从活跃商品聚合卖家维度到 sellers 表（累计销量/GMV/商品数/均价），返回卖家数。"""
+        products = self.products()
+        agg: dict[str, dict] = {}
+        for p in products:
+            sid = p.get("seller_id") or ""
+            if not sid:
+                continue
+            a = agg.setdefault(sid, {
+                "seller_name": p.get("seller_name") or sid,
+                "rating_sum": 0.0, "rating_n": 0, "product_cnt": 0,
+                "total_sold": 0, "total_gmv": 0.0, "price_sum": 0.0,
+                "first_seen_at": p.get("first_seen_at") or utc_now(),
+                "last_seen_at": p.get("last_seen_at") or utc_now(),
+            })
+            a["rating_sum"] += float(p.get("rating") or 0)
+            a["rating_n"] += 1
+            a["product_cnt"] += 1
+            a["total_sold"] += int(p.get("sold_count") or 0)
+            a["total_gmv"] += float(p.get("gmv_total") or 0)
+            a["price_sum"] += float(p.get("price") or 0)
+            fs = p.get("first_seen_at") or ""
+            ls = p.get("last_seen_at") or ""
+            if fs and fs < a["first_seen_at"]:
+                a["first_seen_at"] = fs
+            if ls and ls > a["last_seen_at"]:
+                a["last_seen_at"] = ls
+        now = utc_now()
+        with self.conn() as conn:
+            for sid, a in agg.items():
+                conn.execute(
+                    """INSERT INTO sellers (seller_id, seller_name, region, rating, product_cnt,
+                       total_sold, total_gmv, avg_price, first_seen_at, last_seen_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(seller_id) DO UPDATE SET
+                        seller_name=excluded.seller_name, rating=excluded.rating,
+                        product_cnt=excluded.product_cnt, total_sold=excluded.total_sold,
+                        total_gmv=excluded.total_gmv, avg_price=excluded.avg_price,
+                        first_seen_at=excluded.first_seen_at, last_seen_at=excluded.last_seen_at""",
+                    (sid, a["seller_name"], "US",
+                     round(a["rating_sum"] / max(1, a["rating_n"]), 2),
+                     a["product_cnt"], a["total_sold"], round(a["total_gmv"], 2),
+                     round(a["price_sum"] / max(1, a["product_cnt"]), 2),
+                     a["first_seen_at"] or now, a["last_seen_at"] or now))
+        return len(agg)
+
+    def top_sellers(self, limit: int = 20) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sellers ORDER BY total_sold DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_shop_watch(self, seller_id: str) -> bool:
+        with self.conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO shop_watch (seller_id, added_at) VALUES (?, ?)",
+                (seller_id, utc_now()))
+            return cur.rowcount > 0
+
+    def remove_shop_watch(self, seller_id: str) -> int:
+        with self.conn() as conn:
+            return conn.execute(
+                "DELETE FROM shop_watch WHERE seller_id = ?", (seller_id,)).rowcount
+
+    def shop_watch_list(self) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT w.seller_id, w.added_at, s.seller_name, s.product_cnt,
+                          s.total_sold, s.total_gmv
+                   FROM shop_watch w LEFT JOIN sellers s ON s.seller_id = w.seller_id
+                   ORDER BY w.added_at DESC""").fetchall()
+        return [dict(r) for r in rows]
+
+    def shop_new_listings(self, days: int = 7, limit: int = 30) -> list[dict]:
+        """关注店铺近 days 天新上架商品（按销量排序）。"""
+        watched = [w["seller_id"] for w in self.shop_watch_list()]
+        if not watched:
+            return []
+        placeholders = ",".join("?" for _ in watched)
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self.conn() as conn:
+            rows = conn.execute(
+                f"""SELECT p.product_id, p.title, p.category, p.price, p.sold_count,
+                           p.rating, p.review_count, p.seller_name, p.seller_id,
+                           p.first_seen_at, p.listed_at
+                    FROM products p
+                    WHERE p.is_active = 1 AND p.seller_id IN ({placeholders})
+                      AND p.first_seen_at >= ?
+                    ORDER BY p.sold_count DESC LIMIT ?""",
+                (*watched, cutoff, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def top_video_products(self, limit: int = 10) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT product_id, title, category, price, video_views, video_likes,
+                          influencer_cnt, video_cnt, sold_count
+                   FROM products WHERE is_active = 1 AND video_views > 0
+                   ORDER BY video_views DESC LIMIT ?""", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def upsert_live_sessions(self, sessions: list[LiveSession]) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for s in sessions:
+                conn.execute(
+                    """INSERT OR IGNORE INTO live_sessions
+                       (session_id, seller_name, seller_id, product_id, product_title,
+                        category, live_title, gmv_amt, sold_cnt, viewers_peak, duration_min,
+                        live_at, captured_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (s.session_id, s.seller_name, s.seller_id, s.product_id, s.product_title,
+                     s.category, s.live_title, s.gmv_amt, s.sold_cnt, s.viewers_peak,
+                     s.duration_min, s.live_at, now))
+                written += 1
+        return written
+
+    def top_live_sessions(self, limit: int = 10) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM live_sessions ORDER BY gmv_amt DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def latest_trends(self, limit: int = 20, only_hot: bool = False) -> list[dict]:

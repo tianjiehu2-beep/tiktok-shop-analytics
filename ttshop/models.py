@@ -60,6 +60,29 @@ class KeywordTrend:
 
 
 @dataclass
+class LiveSession:
+    """直播带货场次：一场直播主推一个商品的销售表现。"""
+    session_id: str
+    seller_name: str
+    seller_id: str
+    product_id: str = ""
+    product_title: str = ""
+    category: str = ""
+    live_title: str = ""
+    gmv_amt: float = 0.0
+    sold_cnt: int = 0
+    viewers_peak: int = 0
+    duration_min: int = 0
+    live_at: str = ""
+    captured_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.captured_at:
+            self.captured_at = utc_now()
+
+
+
+@dataclass
 class Product:
     product_id: str
     title: str

@@ -306,6 +306,73 @@ def cmd_competitors(args, settings: Settings) -> int:
     return 0
 
 
+def cmd_shops(args, settings: Settings) -> int:
+    from ttshop.analysis.shop import compute_shop_alerts
+
+    db = _get_db(args, settings)
+    if args.action == "add":
+        if not args.seller_id:
+            print("请指定 --seller-id")
+            return 1
+        ok = db.add_shop_watch(args.seller_id)
+        print("已加入店铺关注" if ok else "该店铺已在关注列表")
+        return 0
+    if args.action == "rm":
+        n = db.remove_shop_watch(args.seller_id or "")
+        print(f"已移除 {n} 个关注店铺")
+        return 0
+    if args.action == "add-top":
+        sellers = db.top_sellers(limit=args.top)
+        for s in sellers:
+            db.add_shop_watch(s["seller_id"])
+        print(f"已将销量 Top {len(sellers)} 店铺加入关注")
+        return 0
+    if args.action == "new":
+        listings = db.shop_new_listings(days=args.days, limit=args.limit)
+        print(f"关注店铺近 {args.days} 天新上架（{len(listings)}）:")
+        for i, r in enumerate(listings, 1):
+            print(f"{i:>2}. {r['seller_name'][:18]:<20} {r['title'][:40]:<42} "
+                  f"${r['price']:.2f}  已售 {r['sold_count']:,}  上架 {r['first_seen_at'][:10]}")
+        return 0
+    sellers, alerts = compute_shop_alerts(db)
+    print(f"店铺维度同步完成: {sellers} 家，新增上新告警 {alerts} 条")
+    print()
+    print("Top 店铺（按累计销量）:")
+    for i, s in enumerate(db.top_sellers(limit=10), 1):
+        print(f"{i:>2}. {s['seller_name'][:24]:<26} 商品 {s['product_cnt']:>4}  "
+              f"累计销量 {s['total_sold']:>10,}  GMV ${s['total_gmv']:>12,.0f}")
+    print()
+    print("关注店铺:")
+    for w in db.shop_watch_list():
+        print(f"  - {w['seller_id']}  {w['seller_name'][:30]}")
+    print()
+    print("查看关注店铺新上架: python main.py shops new")
+    return 0
+
+
+def cmd_live(args, settings: Settings) -> int:
+    from ttshop.demo_data import generate_live_sessions, generate_products
+
+    db = _get_db(args, settings)
+    products = db.products(limit=args.top_products)
+    if not products:
+        products = generate_products(count=args.top_products, seed=args.seed)
+        db.upsert_products(products)
+        db.sync_sellers()
+    sessions = generate_live_sessions(products, count=args.count, seed=args.seed)
+    written = db.upsert_live_sessions(sessions)
+    print(f"直播带货数据写入 {written} 条（demo 生成器；第三方 live 接口可在 "
+          "ttshop/sources/api.py 中扩展 fetch_live_sessions）")
+    print()
+    print("直播带货榜（按GMV）:")
+    for i, s in enumerate(db.top_live_sessions(limit=10), 1):
+        print(f"{i:>2}. [{s['seller_name'][:18]:<20}] {s['live_title'][:26]:<28} "
+              f"带货 {s['product_title'][:22]:<24} GMV ${s['gmv_amt']:>12,.0f}  "
+              f"销量 {s['sold_cnt']:>7,}  峰值观看 {s['viewers_peak']:>8,}")
+    return 0
+
+
+
 def cmd_categories(args, settings: Settings) -> int:
     from ttshop.sources import ApiSource
 
@@ -482,6 +549,20 @@ def main(argv: list[str] | None = None) -> int:
     p_competitors.add_argument("--per-watch", type=int, default=8)
     p_competitors.add_argument("--limit", type=int, default=20)
     p_competitors.set_defaults(func=cmd_competitors)
+
+    p_shops = sub.add_parser("shops", help="店铺监控：卖家维度同步 + 关注店铺上新检测（list/new/add/rm/add-top）")
+    p_shops.add_argument("action", choices=["list", "new", "add", "rm", "add-top"], nargs="?", default="list")
+    p_shops.add_argument("--seller-id", default=None, help="店铺ID（add/rm 时必填）")
+    p_shops.add_argument("--top", type=int, default=5, help="add-top 加入销量前 N 店铺")
+    p_shops.add_argument("--days", type=int, default=7, help="new 检测近 N 天上架")
+    p_shops.add_argument("--limit", type=int, default=20, help="new 列表条数上限")
+    p_shops.set_defaults(func=cmd_shops)
+
+    p_live = sub.add_parser("live", help="直播/短视频带货榜：采集直播场次销售数据（demo 生成器，第三方接口待扩展）")
+    p_live.add_argument("--count", type=int, default=24, help="生成的直播场次数")
+    p_live.add_argument("--top-products", type=int, default=200, help="从商品库取前 N 商品用于生成直播数据")
+    p_live.add_argument("--seed", type=int, default=11, help="随机种子（固定可复现）")
+    p_live.set_defaults(func=cmd_live)
 
     p_report = sub.add_parser("report", help="生成 HTML 分析看板")
     p_report.add_argument("--output", default=None)

@@ -24,8 +24,9 @@ ALERT_LABELS = {
     "new_hot": "新品上榜",
     "comp_price_drop": "竞品降价",
     "comp_surge": "竞品爆量",
+    "shop_new": "店铺上新",
 }
-ALERT_SEVERITY = {"price_drop": 2, "surge": 3, "new_hot": 1, "comp_price_drop": 2, "comp_surge": 3}
+ALERT_SEVERITY = {"price_drop": 2, "surge": 3, "new_hot": 1, "comp_price_drop": 2, "comp_surge": 3, "shop_new": 1}
 
 
 def _today() -> str:

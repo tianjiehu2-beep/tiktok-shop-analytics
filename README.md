@@ -119,7 +119,16 @@ python main.py watch add-top 5              # 把销量 Top 5 加入关注池（
 python main.py watch list                    # 查看关注池
 python main.py competitors                    # 识别竞品并检测变动（run 全流程自动执行）
 
-# 9) 监控告警：每日异动检测（降价/爆量/新品上榜）+ 导出 + 推送（run 全流程自动检测）
+# 11) 店铺监控：卖家维度聚合 + 关注店铺上新检测（run 全流程自动执行）
+python main.py shops                              # 同步店铺维度 + 查看 Top 店铺与关注列表
+python main.py shops new                          # 关注店铺近 7 天新上架商品
+python main.py shops add-top 5                    # 把销量 Top 5 店铺加入关注（或 shops add <sellerId>）
+python main.py shops rm <sellerId>                # 移除关注店铺
+
+# 12) 直播/短视频带货榜：直播场次销售数据（demo 生成器；第三方 live 接口可在 sources/api.py 扩展）
+python main.py live                               # 采集直播场次并查看直播带货榜（按 GMV）
+
+# 9) 监控告警：每日异动检测（降价/爆量/新品上榜/店铺上新）+ 导出 + 推送（run 全流程自动检测）
 python main.py alerts                                        # 查看今日异动
 python main.py alerts --min-surge 200 --growth 2             # 调高异动阈值
 python main.py alerts --webhook https://oapi.dingtalk.com/robot/send?access_token=xxx  # 推送钉钉/企业微信/飞书
@@ -133,7 +142,9 @@ python main.py alerts --webhook https://oapi.dingtalk.com/robot/send?access_toke
 - 关键词（`trending/keyword/ranking` / `inspiration/keyword`）：热词、视频数、热度、7天趋势。
 - 趋势/爆品/预测（`price_snapshots` 时间序列 + `product_trends` + `product_forecasts`）：近7天/30天销量增量、
   7天增速、新品检测、爆品指数、未来7/30天销量预测、生命周期（导入/成长/成熟/衰退）与选品推荐理由。
-看板已包含商品/类目/达人/关键词/爆品预测五个维度。
+- 店铺（`sellers` 聚合 + `shop_watch` 关注池）：卖家商品数/累计销量/GMV/均价、关注店铺上新检测与告警。
+- 直播（`live_sessions`）：直播场次 GMV/销量/峰值观看/时长，直播带货榜；短视频热度榜按视频播放量排序。
+看板已包含商品/类目/达人/关键词/爆品预测/店铺监控/内容带货榜七个维度。
 
 ## 常用命令
 ```bash
