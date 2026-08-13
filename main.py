@@ -260,6 +260,52 @@ def cmd_trend(args, settings: Settings) -> int:
     return 0
 
 
+def cmd_watch(args, settings: Settings) -> int:
+    db = _get_db(args, settings)
+    if args.action == "add":
+        if not args.product_id:
+            print("请指定 --product-id")
+            return 1
+        ok = db.add_watch(args.product_id)
+        print("已加入关注池" if ok else "该商品已在关注池")
+        return 0
+    if args.action == "rm":
+        n = db.remove_watch(args.product_id or "")
+        print(f"已移除 {n} 个关注商品")
+        return 0
+    if args.action == "add-top":
+        products = db.products(limit=args.top)
+        for p in products:
+            db.add_watch(p["product_id"])
+        print(f"已将销量 Top {len(products)} 加入关注池")
+        return 0
+    items = db.watch_list()
+    if not items:
+        print("关注池为空。示例: python main.py watch add-top 5")
+        return 0
+    print(f"关注池（{len(items)}）:")
+    for i, w in enumerate(items, 1):
+        print(f"{i:>2}. {w['product_id']}  {w['title'][:40]}  ${w['price']}  已售 {w['sold_count']:,}")
+    return 0
+
+
+def cmd_competitors(args, settings: Settings) -> int:
+    from ttshop.analysis.competitor import compute_competitors
+
+    db = _get_db(args, settings)
+    count, alerts = compute_competitors(db, per_watch=args.per_watch)
+    rows = db.latest_competitors(limit=args.limit)
+    print(f"竞品识别完成: {count} 条，新增竞品告警 {alerts} 条")
+    print()
+    print("竞品列表（按近7天销量排序）:")
+    for i, r in enumerate(rows, 1):
+        flag = "  [降价]" if r["price_change_pct"] <= -5 else ""
+        print(f"{i:>2}. [{r['watched_title'][:18]}] -> {r['competitor_title'][:34]:<36} "
+              f"价差 {r['price_gap_pct']:>6.1f}%  近2天 {r['price_change_pct']:>7.1f}%  "
+              f"7天销量 {r['sold_7d']:>8,}{flag}")
+    return 0
+
+
 def cmd_categories(args, settings: Settings) -> int:
     from ttshop.sources import ApiSource
 
@@ -425,6 +471,17 @@ def main(argv: list[str] | None = None) -> int:
 
     p_analyze = sub.add_parser("analyze", help="运行选品评分与毛利分析")
     p_analyze.set_defaults(func=cmd_analyze)
+
+    p_watch = sub.add_parser("watch", help="竞品监控：关注商品池管理（add/rm/list/add-top）")
+    p_watch.add_argument("action", choices=["list", "add", "rm", "add-top"])
+    p_watch.add_argument("--product-id", default=None, help="商品ID（add/rm 时必填）")
+    p_watch.add_argument("--top", type=int, default=5, help="add-top 加入销量前 N")
+    p_watch.set_defaults(func=cmd_watch)
+
+    p_competitors = sub.add_parser("competitors", help="竞品监控：识别关注商品的竞品并检测价格/销量变动")
+    p_competitors.add_argument("--per-watch", type=int, default=8)
+    p_competitors.add_argument("--limit", type=int, default=20)
+    p_competitors.set_defaults(func=cmd_competitors)
 
     p_report = sub.add_parser("report", help="生成 HTML 分析看板")
     p_report.add_argument("--output", default=None)

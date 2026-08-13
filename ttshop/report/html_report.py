@@ -8,6 +8,7 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
+from ..analysis.alerts import ALERT_LABELS
 from ..db import Database
 
 
@@ -338,13 +339,42 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
         for i, f in enumerate(forecast_rows, 1)
     ) if forecast_rows else "<tr><td colspan='7'>暂无预测数据（重复执行采集后出现）</td></tr>"
 
+    comp_rows = db.latest_competitors(limit=80)
+    comp_by_watch: dict[str, list] = {}
+    for _r in comp_rows:
+        comp_by_watch.setdefault(_r["product_id"], []).append(_r)
+    if not db.watch_list():
+        comp_table = ("<tr><td colspan='7' style='white-space:normal;color:#64748b'>关注池为空。"
+                      "运行 <code>python main.py watch add-top 5</code> 加入商品；管道每次运行也会自动关注销量 Top3。</td></tr>")
+    elif not comp_rows:
+        comp_table = "<tr><td colspan='7'>暂无竞品数据（同一级类目、同价带的商品会被识别为竞品）</td></tr>"
+    else:
+        comp_table = ""
+        for _pid, _items in comp_by_watch.items():
+            comp_table += (f"<tr><td colspan='7' style='background:#f8fafc;font-weight:600'>"
+                           f"{_esc(_short(_items[0]['watched_title'], 30))}</td></tr>")
+            for _r in _items[:4]:
+                _drop = _r["price_change_pct"] <= -5
+                _price_cell = (f"<td class='num' style='color:#ef4444;font-weight:600'>"
+                               f"{_r['price_change_pct']:.1f}%</td>" if _drop
+                               else f"<td class='num'>{_r['price_change_pct']:.1f}%</td>")
+                comp_table += (
+                    f"<tr><td></td>"
+                    f"<td title='{_esc(_r['competitor_title'])}'>{_esc(_short(_r['competitor_title'], 26))}</td>"
+                    f"<td><span class='tag'>{_esc(_short(_r['competitor_category'], 18))}</span></td>"
+                    f"<td class='num'>{_r['price_gap_pct']:+.1f}%</td>"
+                    + _price_cell +
+                    f"<td class='num'>{_r['sold_7d']:,}</td>"
+                    f"<td class='num'>{_r['rating']}</td></tr>"
+                )
+
     alert_rows = db.alerts_by_date(limit=30)
     alert_table = "\n".join(
         f"<tr><td><span class='badge'>{_esc(alert_type)}</span></td>"
         f"<td title='{_esc(a['title'])}'>{_esc(_short(a['title'], 40))}</td>"
         f"<td>{_esc(a['message'])}</td>"
         f"<td class='num'>{'★' * a['severity']}</td></tr>"
-        for a, alert_type in [(a, {"price_drop": "降价", "surge": "爆量", "new_hot": "新品"}.get(a["alert_type"], a["alert_type"])) for a in alert_rows]
+        for a, alert_type in [(a, ALERT_LABELS.get(a["alert_type"], a["alert_type"])) for a in alert_rows]
     ) if alert_rows else "<tr><td colspan='4'>今日暂无监控异动（每日采集后自动检测）</td></tr>"
 
     influencers = db.top_influencers(limit=10)
@@ -414,6 +444,14 @@ def build_report(db: Database, settings, output_path: str | Path, source: str | 
   <div class="scroll"><table>
     <tr><th>#</th><th>商品</th><th>类目</th><th>生命周期</th><th class="num">预测7天增量</th><th class="num">置信度</th><th>推荐理由</th></tr>
     {forecast_table}
+  </table></div>
+</section>
+
+<section class="panel">
+  <h2>竞品监控（关注商品池 · 价差 / 近2天价格 / 近7天销量）</h2>
+  <div class="scroll"><table>
+    <tr><th></th><th>竞品</th><th>类目</th><th class="num">价差</th><th class="num">近2天价格</th><th class="num">近7天销量</th><th class="num">评分</th></tr>
+    {comp_table}
   </table></div>
 </section>
 

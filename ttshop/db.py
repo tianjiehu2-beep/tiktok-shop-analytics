@@ -134,6 +134,23 @@ CREATE TABLE IF NOT EXISTS product_forecasts (
     reason        TEXT NOT NULL DEFAULT '',
     forecast_at   TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS watch_items (
+    product_id TEXT PRIMARY KEY,
+    added_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS competitors (
+    product_id       TEXT NOT NULL,
+    competitor_id    TEXT NOT NULL,
+    matched_at       TEXT NOT NULL,
+    price_gap_pct    REAL NOT NULL DEFAULT 0,
+    price_change_pct REAL NOT NULL DEFAULT 0,
+    sold_7d          INTEGER NOT NULL DEFAULT 0,
+    rating           REAL NOT NULL DEFAULT 0,
+    review_count     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (product_id, competitor_id)
+);
 """
 
 
@@ -375,6 +392,58 @@ class Database:
                  ORDER BY f.predicted_7d DESC, f.confidence DESC LIMIT ?"""
         with self.conn() as conn:
             rows = conn.execute(sql, (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_watch(self, product_id: str) -> bool:
+        with self.conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO watch_items (product_id, added_at) VALUES (?, ?)",
+                (product_id, utc_now()))
+            return cur.rowcount > 0
+
+    def remove_watch(self, product_id: str) -> int:
+        with self.conn() as conn:
+            cur = conn.execute("DELETE FROM watch_items WHERE product_id = ?", (product_id,))
+            return cur.rowcount
+
+    def watch_list(self) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT w.product_id, w.added_at, p.title, p.category, p.price, p.sold_count
+                   FROM watch_items w JOIN products p ON p.product_id = w.product_id
+                   ORDER BY w.added_at DESC""").fetchall()
+        return [dict(r) for r in rows]
+
+    def save_competitors(self, rows: list[dict]) -> int:
+        now = utc_now()
+        written = 0
+        with self.conn() as conn:
+            for r in rows:
+                conn.execute(
+                    """INSERT INTO competitors
+                       (product_id, competitor_id, matched_at, price_gap_pct,
+                        price_change_pct, sold_7d, rating, review_count)
+                       VALUES (?,?,?,?,?,?,?,?)
+                       ON CONFLICT(product_id, competitor_id) DO UPDATE SET
+                        matched_at=excluded.matched_at, price_gap_pct=excluded.price_gap_pct,
+                        price_change_pct=excluded.price_change_pct, sold_7d=excluded.sold_7d,
+                        rating=excluded.rating, review_count=excluded.review_count""",
+                    (r["product_id"], r["competitor_id"], utc_now(), r["price_gap_pct"],
+                     r["price_change_pct"], r["sold_7d"], r["rating"], r["review_count"]),
+                )
+                written += 1
+        return written
+
+    def latest_competitors(self, limit: int = 60) -> list[dict]:
+        with self.conn() as conn:
+            rows = conn.execute(
+                """SELECT c.*, p.title AS competitor_title, p.category AS competitor_category,
+                          p.price AS competitor_price, pw.title AS watched_title
+                   FROM competitors c
+                   JOIN products p ON p.product_id = c.competitor_id
+                   JOIN watch_items w ON w.product_id = c.product_id
+                   JOIN products pw ON pw.product_id = w.product_id
+                   ORDER BY c.sold_7d DESC LIMIT ?""", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def latest_trends(self, limit: int = 20, only_hot: bool = False) -> list[dict]:

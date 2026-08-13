@@ -113,6 +113,12 @@ python main.py keywords --keyword yoga --limit 20             # 围绕 yoga 的�
 # 8) 趋势分析与爆品预测：7天/30天增速、新品检测、爆品指数（run 全流程自动计算）
 python main.py trend --limit 15                              # 查看爆品预测榜
 
+
+# 10) 竞品监控：关注商品池 + 同赛道竞品识别（价格/销量变动 + 竞品降价/爆量告警）
+python main.py watch add-top 5              # 把销量 Top 5 加入关注池（或 watch add <商品ID>）
+python main.py watch list                    # 查看关注池
+python main.py competitors                    # 识别竞品并检测变动（run 全流程自动执行）
+
 # 9) 监控告警：每日异动检测（降价/爆量/新品上榜）+ 导出 + 推送（run 全流程自动检测）
 python main.py alerts                                        # 查看今日异动
 python main.py alerts --min-surge 200 --growth 2             # 调高异动阈值
