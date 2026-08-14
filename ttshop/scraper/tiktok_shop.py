@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 # ????????TikTok Shop ?????????????
 SEARCH_URL_TEMPLATE = "https://shop.tiktok.com/{region_lower}/s?q={keyword}"
 
-# ?????????????? JS??? [{href, title, text, img}]
-_CARDS_JS = """() => {
+# ?????????????? JS?????????? DOM ???????????????
+_CARDS_JS = r"""() => {
   const out = [];
   const seen = new Set();
   const links = Array.from(document.querySelectorAll('a[href*="/pdp/"]'));
@@ -39,12 +39,36 @@ _CARDS_JS = """() => {
       if (t.includes('$') && card.querySelector('img')) break;
     }
     const titleEl = a.querySelector('h3') || a;
+    const title = (titleEl.innerText || a.getAttribute('title') || '').trim();
     const imgEl = card ? card.querySelector('img') : null;
+
+    let seller = '', sold = '', rating = '';
+    if (card) {
+      const leaves = Array.from(card.querySelectorAll('*')).filter(el => el.childElementCount === 0);
+      for (const el of leaves) {
+        const t = (el.textContent || '').trim();
+        if (!t) continue;
+        if (el === titleEl || el === a) break;
+        if (/^[\d.,]+[KkMm]?\s*sold$/i.test(t)) { sold = t; continue; }
+        if (/^\d\.\d$/.test(t)) { rating = t; continue; }
+        if (/^(free\s*shipping|coupon|best\s*seller|low\s*stock|add\s*to\s*cart)$/i.test(t)) continue;
+        if (t.length <= 60 && !/^US?\$/.test(t) && !/^-?\d/.test(t)) seller = t;
+      }
+    }
+    const text = card ? (card.innerText || '') : '';
+    const priceMatches = text.match(/(?<!-)(?:US)?\$\s*([\d,]+\.?\d*)/g) || [];
+    const clean = (s) => s ? s.replace(/[^0-9.]/g, '') : '';
+    const price = priceMatches.length ? clean(priceMatches[0]) : '';
+    const original = priceMatches.length > 1 ? clean(priceMatches[priceMatches.length - 1]) : price;
     out.push({
       href: href,
-      title: (titleEl.innerText || a.getAttribute('title') || '').trim(),
-      text: card ? (card.innerText || '') : '',
-      img: imgEl ? (imgEl.currentSrc || imgEl.src || '') : ''
+      title: title,
+      img: imgEl ? (imgEl.currentSrc || imgEl.src || '') : '',
+      price: price,
+      original: original,
+      sold: sold,
+      rating: rating,
+      seller: seller
     });
   }
   return out;
@@ -151,16 +175,22 @@ class TikTokShopScraper:
 
             seen: set[str] = set()
             stale = 0
-            for _ in range(30):
+            raw_total = 0
+            skipped = 0
+            for _ in range(40):
                 try:
                     cards = page.evaluate(_CARDS_JS)
                 except Exception as exc:
                     logger.warning("????????: %s", exc)
                     break
+                raw_total = max(raw_total, len(cards))
                 new_count = 0
                 for card in cards:
                     product = self._parse_card(card, keyword)
-                    if product and product.product_id not in seen:
+                    if product is None:
+                        skipped += 1
+                        continue
+                    if product.product_id not in seen:
                         seen.add(product.product_id)
                         products.append(product)
                         new_count += 1
@@ -168,40 +198,44 @@ class TikTokShopScraper:
                     break
                 if new_count == 0:
                     stale += 1
-                    if stale >= 4:
+                    if stale >= 5:
                         break
                 else:
                     stale = 0
-                page.mouse.wheel(0, 1_500)
-                page.wait_for_timeout(random.randint(1_200, 2_500))
+                page.mouse.wheel(0, 800)
+                page.wait_for_timeout(random.randint(900, 1_800))
         finally:
             browser.close()
             playwright.stop()
 
-        logger.info("????: %d ?", len(products))
+        logger.info("????: %d ?????? %d?????? %d?", len(products), raw_total, skipped)
         return products[:limit]
 
     def _parse_card(self, card: dict, keyword: str) -> Product | None:
-        text = card.get("text") or ""
         title = (card.get("title") or "").strip()
         if not title:
             return None
 
-        prices = re.findall(r"(?<!-)(?:US)?\$\s*([\d,]+\.?\d*)", text)
-        if not prices:
-            return None
-        price = float(prices[0].replace(",", ""))
-        original = float(prices[-1].replace(",", "")) if len(prices) > 1 else price
-        if original <= price:
-            original = price
+        try:
+            price = float(card.get("price") or 0)
+        except ValueError:
+            price = 0.0
         if price <= 0:
             return None
+        try:
+            original = float(card.get("original") or price)
+        except ValueError:
+            original = price
+        if original <= price:
+            original = price
 
-        sold_m = re.search(r"([\d.,]+[KkMm?]?)\s*sold", text, re.IGNORECASE)
-        sold = _parse_sold(sold_m.group(1) if sold_m else 0)
-
-        rating_m = re.search(r"(?<![\d.])(\d\.\d)(?![\d.])", text)
-        rating = float(rating_m.group(1)) if rating_m else 0.0
+        sold = _parse_sold(card.get("sold"))
+        try:
+            rating = float(card.get("rating") or 0)
+        except ValueError:
+            rating = 0.0
+        if rating > 5.0:
+            rating = 0.0
 
         href = card.get("href") or ""
         id_m = re.search(r"/(\d{15,20})(?:[/?]|$)", href)
@@ -216,7 +250,7 @@ class TikTokShopScraper:
             sold_count=sold,
             rating=rating,
             review_count=0,
-            seller_name=_extract_seller(text, title),
+            seller_name=(card.get("seller") or "").strip()[:80],
             seller_id="",
             commission_rate=0.0,
             video_views=0,
