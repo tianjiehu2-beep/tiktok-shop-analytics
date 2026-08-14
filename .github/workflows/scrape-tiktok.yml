@@ -35,41 +35,8 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
-      - name: Diagnose what TikTok returns for the region
-        run: |
-          python - <<'PY'
-          import urllib.parse
-          from playwright.sync_api import sync_playwright
-
-          region = "${{ github.event.inputs.region }}"
-          q = urllib.parse.quote("${{ github.event.inputs.keyword }}")
-          urls = [
-              f"https://shop.tiktok.com/{region.lower()}/s?q={q}",
-              f"https://www.tiktok.com/shop/{region.lower()}/search?q={q}",
-              f"https://shop.tiktok.com/{region.lower()}/c/0?q={q}",
-          ]
-          UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-
-          with sync_playwright() as p:
-              b = p.chromium.launch(headless=True)
-              ctx = b.new_context(locale="en-US", timezone_id="America/New_York", user_agent=UA)
-              page = ctx.new_page()
-              for i, url in enumerate(urls):
-                  try:
-                      page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                      page.wait_for_timeout(5000)
-                      print(f"--- URL[{i}] ---")
-                      print("REQ:", url)
-                      print("TITLE:", (page.title() or '')[:120])
-                      print("FINAL:", page.url[:120])
-                      pdp = page.evaluate("() => document.querySelectorAll('a[href*="/pdp/"]').length")
-                      print("PDP:", pdp)
-                      body = page.evaluate("() => document.body ? document.body.innerText.slice(0,300) : ''")
-                      print("BODY:", body.replace(chr(10), ' | ')[:300])
-                  except Exception as exc:
-                      print(f"--- URL[{i}] ERROR:", str(exc)[:200])
-              b.close()
-          PY
+      - name: Diagnose TH and ID shop pages
+        run: python tools/diag_sea.py --keyword "${{ github.event.inputs.keyword }}" --regions "TH,ID"
 
       - name: Try the project scraper for the region
         run: |
@@ -97,3 +64,5 @@ jobs:
           name: scrape-result
           path: |
             data/tiktok_shop.db
+            diag_TH.png
+            diag_ID.png
