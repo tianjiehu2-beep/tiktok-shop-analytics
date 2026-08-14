@@ -36,7 +36,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Diagnose TH and ID shop pages
-        run: python tools/diag_sea.py --keyword "${{ github.event.inputs.keyword }}" --regions "TH,ID"
+        run: python tools/diag_sea.py --keyword "${{ github.event.inputs.keyword }}" --regions "TH,ID" --category "603084"
 
       - name: Try the project scraper for the region
         run: |
@@ -66,3 +66,7 @@ jobs:
             data/tiktok_shop.db
             diag_TH.png
             diag_ID.png
+            diag_TH_cat.png
+            diag_ID_cat.png
+            diag_TH_catsearch.png
+            diag_ID_catsearch.png
