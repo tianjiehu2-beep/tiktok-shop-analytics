@@ -80,6 +80,18 @@ python main.py run --source api --keyword "yoga mat" --provider echotik
 base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normalize_item` 中完成。
 新增数据源：实现 `ttshop/sources/base.py` 的 `DataSource` 并在 `get_source` 注册即可。
 
+## 免费真实采集：GitHub Actions 海外 IP（0 成本）
+
+- 痛点：TikTok Shop 反爬强、国内直连拿不到美区数据、第三方 API 免费额度有限。
+- 方案：GitHub Actions 自带海外 IP 且免费，配合 Playwright 真实渲染 shop.tiktok.com 搜索页，
+  从渲染后的 DOM 提取商品卡（标题 / 价格 / 销量 / 评分 / 店铺名），滚动加载更多。
+- 已实测：单次可抓 15~35 个真实商品；每日 08:30（北京时间）定时跑 yoga mat / massage gun / air fryer，
+  落库 → 分析 → 出报告 → 部署 GitHub Pages，全程 0 API 费用、0 代理费用。
+- 相关文件：
+  - .github/workflows/scrape-tiktok.yml  手动触发实验，可填任意关键词（Actions 页面 Run workflow）
+  - .github/workflows/daily-report.yml   每日定时流水线（测试 → 免费采集 → 看板 → Pages 部署）
+- 手动验证：仓库 Actions 页 → scrape-tiktok-experiment → Run workflow → 输入关键词，等 2-3 分钟看产物。
+
 ## 成熟采集：按类目 / 按具体商品 / 按店铺（EchoTik API）
 采集器已对接 EchoTik 多个真实接口，支持类目树浏览、按类目分页采集、批量关键词、
 按商品 ID 精准采集、按店铺整店采集、商品详情补全与商品榜单，落库后自动做
