@@ -108,6 +108,7 @@ def cmd_run(args, settings: Settings) -> int:
                           or getattr(args, "seller_id", None)
                           or getattr(args, "product_ids", None)) else "demo"
     if source in ("scraper", "api") and not args.keyword and not (
+            source == "scraper" and args.category) and not (
             source == "api" and (args.category_id or getattr(args, "seller_id", None)
                                  or getattr(args, "product_ids", None))):
         print(f"{source} 数据源需要 --keyword / --category-id / --seller-id / --product-ids"

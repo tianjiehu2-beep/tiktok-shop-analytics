@@ -18,8 +18,9 @@ class ScraperSource(DataSource):
 
     def fetch(self, keyword: str | None = None, limit: int | None = None,
               category: str | None = None) -> SourceResult:
-        if not keyword:
-            raise ValueError('scraper 数据源需要 --keyword（例如 "yoga mat"）')
+        if not keyword and not category:
+            raise ValueError('scraper 数据源需要 --keyword 或 --category'
+                             '（例如 --keyword "yoga mat" 或 --category "sports & outdoors"）')
         from ..scraper.tiktok_shop import TikTokShopScraper  # 延迟导入，demo 模式无需 playwright
 
         scraper = TikTokShopScraper(
@@ -29,4 +30,7 @@ class ScraperSource(DataSource):
             max_products_per_run=limit or self.max_products_per_run,
             proxy=self.proxy,
         )
+        if category and not keyword:
+            # 按类目采集：用类目名作为搜索词
+            return SourceResult(products=scraper.scrape_category(category, limit=limit))
         return SourceResult(products=scraper.scrape_search(keyword, limit=limit))

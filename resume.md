@@ -18,7 +18,7 @@ TikTok Shop 美区选品数据分析项目（自建数据看板辅助运营选�
 - 竞品 / 店铺监控：跟踪竞品价格、销量变动与新品上架，支持跟卖判断与定价参考。
 - 内容与达人：分析带货达人（粉丝 / 带货 GMV / EC 分）与飙升关键词，辅助商品种草与短视频选题。
 - 数据自动化：自建数据采集与分析看板，每日自动更新商品价格 / 销量历史，替代人工逐条查数。
-- 真实数据验证：通过 EchoTik 数据平台完成美区真实数据采集（48 个商品 / 20 位达人 / 15 个关键词），看板在线可访问。
+- 真实数据验证：通过 EchoTik 数据平台完成美区真实数据采集（48 个商品 / 20 位达人 / 15 个关键词）；另自建 0 成本采集管道——GitHub Actions 海外 IP + Playwright 真实渲染 TikTok Shop 美区搜索页，每日定时采集 3 个关键词共 50+ 条真实商品（标题 / 价格 / 销量 / 评分 / 店铺名），看板在线可访问。
 
 ## 在线看板
 https://tianjiehu2-beep.github.io/tiktok-shop-analytics/index.html
@@ -37,4 +37,4 @@ https://tianjiehu2-beep.github.io/tiktok-shop-analytics/index.html
 6. 没有实操经验？→ 用数据系统证明选品与数据分析能力，愿意从执行做起，先跑通上架—优化—复盘闭环
 
 ## 技术岗备选版（如同时投运营 / 数据相关技术岗）
-可插拔数据源架构（demo / scraper / api / auto）· EchoTik OpenAPI 对接（10+ 接口，字段归一化）· Failover 多源降级 · SQLite 14 张表（主键去重 + 价格销量历史快照）· 20+ CLI · 71 个单元测试 · GitHub Actions + Pages 每日部署
+可插拔数据源架构（demo / scraper / api / auto）· EchoTik OpenAPI 对接（10+ 接口，字段归一化）· Failover 多源降级 · SQLite 14 张表（主键去重 + 价格销量历史快照）· 20+ CLI · 73 个单元测试 · Playwright 真实渲染采集（海外 IP 绕地域限制，DOM 卡片解析 + 风控失败重试降级）· GitHub Actions 每日定时流水线（测试 → 免费采集 → 报告 → Pages 部署）

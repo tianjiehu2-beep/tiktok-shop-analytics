@@ -7,6 +7,10 @@ on:
         description: "Search keyword"
         required: false
         default: "yoga mat"
+      category:
+        description: "Or collect by category name (free scraper)
+        required: false
+        default: ""
       limit:
         description: "Max products to collect"
         required: false
@@ -60,7 +64,11 @@ jobs:
           PY
       - name: Direct scrape TikTok Shop
         run: |
-          python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
+          if [ -n "${{ github.event.inputs.category }}" ]; then
+            python main.py run --source scraper --category "${{ github.event.inputs.category }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
+          else
+            python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
+          fi
 
       - name: Report result
         run: |

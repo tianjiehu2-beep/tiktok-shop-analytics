@@ -247,6 +247,11 @@ class TikTokShopScraper:
             page.wait_for_timeout(random.randint(900, 1_800))
         return new_count, raw_total, skipped
 
+    def scrape_category(self, category: str, limit: int | None = None) -> list[Product]:
+        """按类目采集（免费方案）：TikTok Shop 网页端不开放类目浏览页（/us/c 会被风控拦截），
+        因此用类目名作为搜索词在搜索页采集，拿到该类目下的热门商品。"""
+        return self.scrape_search(category, limit=limit)
+
     def _parse_card(self, card: dict, keyword: str) -> Product | None:
         title = (card.get("title") or "").strip()
         if not title:
