@@ -34,7 +34,6 @@ jobs:
       - name: Diagnose what TikTok returns
         run: |
           python - <<'PY'
-          import json
           from playwright.sync_api import sync_playwright
 
           URL = "https://shop.tiktok.com/us/s?q=yoga%20mat"
@@ -44,46 +43,12 @@ jobs:
               b = p.chromium.launch(headless=True)
               ctx = b.new_context(locale="en-US", timezone_id="America/New_York", user_agent=UA)
               page = ctx.new_page()
-              captured = {}
-
-              def on_response(resp):
-                  u = resp.url
-                  if "page_data" in u:
-                      try:
-                          body = resp.body()
-                          captured["page_data"] = body
-                          d = json.loads(body)
-                          def find_lists(o, path=""):
-                              out = []
-                              if isinstance(o, dict):
-                                  for k, v in o.items():
-                                      if isinstance(v, list) and v and isinstance(v[0], dict):
-                                          out.append((path + "/" + k, len(v), list(v[0].keys())[:25]))
-                                      else:
-                                          out += find_lists(v, path + "/" + k)
-                              return out
-                          print("PAGE_DATA_LISTS:", json.dumps(find_lists(d))[:1200])
-                      except Exception as e:
-                          print("PAGE_DATA_PARSE_ERR:", str(e)[:200])
-              page.on("response", on_response)
-
               page.goto(URL, wait_until="domcontentloaded", timeout=45000)
-              page.wait_for_timeout(10000)
-              page.mouse.wheel(0, 2000)
-              page.wait_for_timeout(2000)
-
-              if "page_data" in captured:
-                  open("page_data.json", "wb").write(captured["page_data"])
-                  print("PAGE_DATA_SAVED", len(captured["page_data"]))
-              else:
-                  print("NO_PAGE_DATA")
-              print("PDP_LINKS:", page.evaluate("() => document.querySelectorAll('a[href*=\"/pdp/\"]').length"))
-              cards = page.evaluate("""() => {
-                  const links = Array.from(document.querySelectorAll('a[href*="/pdp/"]')).slice(0, 3);
-                  return links.map(a => a.innerText.replace(/\n/g, ' | ').slice(0, 300));
-              }""")
-              for c in cards:
-                  print("CARD:", c)
+              page.wait_for_timeout(8000)
+              print("TITLE:", page.title())
+              print("FINAL_URL:", page.url)
+              pdp = page.evaluate("() => document.querySelectorAll('a[href*=\"/pdp/\"]').length")
+              print("PDP_LINKS:", pdp)
               page.screenshot(path="diagnose_0.png")
               b.close()
           PY
@@ -103,9 +68,8 @@ jobs:
               raise SystemExit(1)
           con = sqlite3.connect(str(db_path))
           n = con.execute("select count(*) from products").fetchone()[0]
-          titles = [r[0] for r in con.execute("select title from products limit 5")]
-          con.close()
           rows = con.execute("select product_id, title, price, sold_count, rating, seller_name from products limit 8").fetchall()
+          con.close()
           print("DB_PRODUCTS=" + str(n))
           for r in rows:
               print("  sample:", r)
@@ -121,4 +85,3 @@ jobs:
             data/tiktok_shop.db
             reports/tiktok_shop_report.html
             diagnose_0.png
-            page_data.json
