@@ -34,9 +34,10 @@ jobs:
       - name: Diagnose what TikTok returns
         run: |
           python - <<'PY'
+          import json
           from playwright.sync_api import sync_playwright
 
-          URL = "https://shop.tiktok.com/us/s?q=yoga%20mat"
+          URL = "https://shop.tiktok.com/us/c"
           UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
           with sync_playwright() as p:
@@ -47,12 +48,24 @@ jobs:
               page.wait_for_timeout(8000)
               print("TITLE:", page.title())
               print("FINAL_URL:", page.url)
-              pdp = page.evaluate("() => document.querySelectorAll('a[href*=\"/pdp/\"]').length")
-              print("PDP_LINKS:", pdp)
+              cats = page.evaluate('''() => {
+                  const out = [];
+                  for (const a of document.querySelectorAll("a[href*='/c/']")) {
+                      const t = (a.innerText || '').trim();
+                      if (t && !/^(TikTok Shop|Shop All Categories)$/.test(t)) {
+                          out.push([t.slice(0, 50), a.href]);
+                      }
+                  }
+                  return out;
+              }''')
+              print("CATEGORY_LINKS:", len(cats))
+              for t, h in cats[:40]:
+                  print("  ", t, "->", h)
+              html = page.evaluate("document.documentElement.outerHTML")
+              open("diagnose_0.html", "w", encoding="utf-8").write(html)
               page.screenshot(path="diagnose_0.png")
               b.close()
           PY
-
       - name: Direct scrape TikTok Shop
         run: |
           python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
@@ -85,3 +98,4 @@ jobs:
             data/tiktok_shop.db
             reports/tiktok_shop_report.html
             diagnose_0.png
+            diagnose_0.html
