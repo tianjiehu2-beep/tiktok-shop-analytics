@@ -171,52 +171,81 @@ class TikTokShopScraper:
 
         playwright, browser, context = self._browser()
         products: list[Product] = []
+        seen: set[str] = set()
         try:
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-            try:
-                page.wait_for_selector('a[href*="/pdp/"]', timeout=30_000)
-            except Exception:
-                logger.warning("??????????????????????")
-            page.wait_for_timeout(2_000)
-
-            seen: set[str] = set()
-            stale = 0
             raw_total = 0
             skipped = 0
-            for _ in range(40):
+            for attempt in range(1, 4):
                 try:
-                    cards = page.evaluate(_CARDS_JS)
+                    page.goto(url, wait_until="domcontentloaded", timeout=60_000)
                 except Exception as exc:
-                    logger.warning("????????: %s", exc)
-                    break
-                raw_total = max(raw_total, len(cards))
-                new_count = 0
-                for card in cards:
-                    product = self._parse_card(card, keyword)
-                    if product is None:
-                        skipped += 1
-                        continue
-                    if product.product_id not in seen:
-                        seen.add(product.product_id)
-                        products.append(product)
-                        new_count += 1
+                    logger.warning("??????(?%d?): %s", attempt, exc)
+                    continue
+                logger.info("????: %s", page.title())
+                logger.info("????: %s", page.url)
+                # ???????????? "Results for" ??????????
+                try:
+                    page.get_by_text("Results for", exact=False).first.wait_for(timeout=30_000)
+                except Exception:
+                    logger.warning("??? 'Results for' ???????????????")
+                try:
+                    page.wait_for_function(
+                        """() => document.querySelectorAll('a[href*="/pdp/"]').length >= 10""",
+                        timeout=30_000,
+                    )
+                except Exception:
+                    logger.warning("?????? 10 ??????????????")
+                page.wait_for_timeout(2_000)
+
+                new_count, raw_total, skipped = self._collect_cards(
+                    page, keyword, limit, products, seen, raw_total, skipped
+                )
                 if len(products) >= limit:
                     break
-                if new_count == 0:
-                    stale += 1
-                    if stale >= 5:
-                        break
-                else:
-                    stale = 0
-                page.mouse.wheel(0, 800)
-                page.wait_for_timeout(random.randint(900, 1_800))
+                if new_count > 0:
+                    break  # ???????????
+                if attempt < 3:
+                    logger.warning("? %d ??????????", attempt)
         finally:
             browser.close()
             playwright.stop()
 
         logger.info("????: %d ?????? %d?????? %d?", len(products), raw_total, skipped)
         return products[:limit]
+
+    def _collect_cards(self, page, keyword: str, limit: int, products: list,
+                       seen: set, raw_total: int, skipped: int) -> tuple[int, int, int]:
+        """????????????????? (?????, ??????, ?????)?"""
+        stale = 0
+        for _ in range(40):
+            try:
+                cards = page.evaluate(_CARDS_JS)
+            except Exception as exc:
+                logger.warning("????????: %s", exc)
+                break
+            raw_total = max(raw_total, len(cards))
+            new_count = 0
+            for card in cards:
+                product = self._parse_card(card, keyword)
+                if product is None:
+                    skipped += 1
+                    continue
+                if product.product_id not in seen:
+                    seen.add(product.product_id)
+                    products.append(product)
+                    new_count += 1
+            if len(products) >= limit:
+                break
+            if new_count == 0:
+                stale += 1
+                if stale >= 5:
+                    break
+            else:
+                stale = 0
+            page.mouse.wheel(0, 800)
+            page.wait_for_timeout(random.randint(900, 1_800))
+        return new_count, raw_total, skipped
 
     def _parse_card(self, card: dict, keyword: str) -> Product | None:
         title = (card.get("title") or "").strip()
