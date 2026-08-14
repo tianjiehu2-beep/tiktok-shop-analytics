@@ -8,7 +8,7 @@ on:
         required: false
         default: "yoga mat"
       category:
-        description: "Or collect by category name (free scraper)
+        description: "Or collect by category name (free scraper)"
         required: false
         default: ""
       limit:
