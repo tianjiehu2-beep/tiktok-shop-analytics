@@ -37,7 +37,7 @@ jobs:
           import json
           from playwright.sync_api import sync_playwright
 
-          URL = "https://shop.tiktok.com/us/c"
+          URL = "https://shop.tiktok.com/us/s?q=yoga%20mat"
           UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
           with sync_playwright() as p:
@@ -47,21 +47,40 @@ jobs:
               page.goto(URL, wait_until="domcontentloaded", timeout=45000)
               page.wait_for_timeout(8000)
               print("TITLE:", page.title())
-              print("FINAL_URL:", page.url)
-              cats = page.evaluate('''() => {
-                  const out = [];
-                  for (const a of document.querySelectorAll("a[href*='/c/']")) {
-                      const t = (a.innerText || '').trim();
-                      if (t && !/^(TikTok Shop|Shop All Categories)$/.test(t)) {
-                          out.push([t.slice(0, 50), a.href]);
+              print("URL0:", page.url)
+              # try clicking Filters button
+              clicked = False
+              try:
+                  page.get_by_text('Filters', exact=True).first.click(timeout=8000)
+                  clicked = True
+                  page.wait_for_timeout(3000)
+                  print('FILTERS_CLICKED')
+              except Exception as exc:
+                  print("FILTERS_CLICK_ERR:", str(exc)[:150])
+              if clicked:
+                  # dump visible filter option texts
+                  opts = page.evaluate('''() => {
+                      const out = [];
+                      for (const el of document.querySelectorAll('[role=option], [role=checkbox], button, span')) {
+                          const t = (el.innerText || '').trim();
+                          if (t && t.length < 40) out.push(t);
                       }
-                  }
-                  return out;
-              }''')
-              print("CATEGORY_LINKS:", len(cats))
-              for t, h in cats[:40]:
-                  print("  ", t, "->", h)
-              html = page.evaluate("document.documentElement.outerHTML")
+                      return out.slice(0, 60);
+                  }''')
+                  print("PANEL_TEXTS:", json.dumps(opts[:60])[:1500])
+                  # try clicking a category-looking option
+                  for label in ['Sports & Outdoor', 'Fitness', 'Sports', 'Home & Living']:
+                      try:
+                          page.get_by_text(label, exact=True).first.click(timeout=3000)
+                          page.wait_for_timeout(4000)
+                          print('CLICKED:', label)
+                          print('URL_AFTER:', page.url)
+                          pdp = page.evaluate("() => document.querySelectorAll('a[href*=\"/pdp/\"]').length")
+                          print('PDP_AFTER:', pdp)
+                          break
+                      except Exception as exc:
+                          print("skip", label, str(exc)[:80])
+              html = page.evaluate('document.documentElement.outerHTML')
               open("diagnose_0.html", "w", encoding="utf-8").write(html)
               page.screenshot(path="diagnose_0.png")
               b.close()
