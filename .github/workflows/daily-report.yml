@@ -30,10 +30,26 @@ jobs:
       - name: 运行单元测试
         run: python -m unittest discover -s tests
 
+      - name: 免费真实采集（GitHub 海外 IP + Playwright）
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+          python main.py run --source scraper --keyword "yoga mat" --limit 30 || echo "scraper: yoga mat 采集失败"
+          python main.py run --source scraper --keyword "massage gun" --limit 20 || echo "scraper: massage gun 采集失败"
+          python main.py run --source scraper --keyword "air fryer" --limit 20 || echo "scraper: air fryer 采集失败"
+
       - name: 生成数据与看板
         run: |
-          if [ -f reports/index.html ] && grep -q "数据源：api" reports/index.html 2>/dev/null; then
-            echo "检测到已提交的真实数据，跳过采集，直接部署"
+          if python - <<'PY'
+          import os, sqlite3
+          if os.path.exists("data/tiktok_shop.db"):
+              n = sqlite3.connect("data/tiktok_shop.db").execute("select count(*) from products").fetchone()[0]
+              print("DB_PRODUCTS=", n)
+              raise SystemExit(0 if n >= 10 else 1)
+          raise SystemExit(1)
+          PY
+          then
+            echo "已通过免费 Playwright 采集到真实数据，跳过补充采集"
           elif [ -n "${{ secrets.TTSHOP_API_KEY }}" ]; then
             python main.py run --source api --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}" || python main.py run --source demo --products 300
             python main.py run --source api --keyword "yoga mat" --limit 30 --with-influencers --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "keyword collection skipped"
