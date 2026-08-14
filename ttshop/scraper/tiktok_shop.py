@@ -46,13 +46,20 @@ _CARDS_JS = r"""() => {
     if (card) {
       const leaves = Array.from(card.querySelectorAll('*')).filter(el => el.childElementCount === 0);
       for (const el of leaves) {
+        if (el === titleEl || el === a) break;
         const t = (el.textContent || '').trim();
         if (!t) continue;
-        if (el === titleEl || el === a) break;
-        if (/^[\d.,]+[KkMm]?\s*sold$/i.test(t)) { sold = t; continue; }
-        if (/^\d\.\d$/.test(t)) { rating = t; continue; }
+        if (/^[\d.,]+[KkMm]?\s*sold$/i.test(t)) continue;
+        if (/^\d\.\d$/.test(t)) continue;
         if (/^(free\s*shipping|coupon|best\s*seller|low\s*stock|add\s*to\s*cart)$/i.test(t)) continue;
         if (t.length <= 60 && !/^US?\$/.test(t) && !/^-?\d/.test(t)) seller = t;
+      }
+      for (const el of leaves) {
+        const t = (el.textContent || '').trim();
+        if (!t) continue;
+        if (!sold && /^[\d.,]+[KkMm]?\s*sold$/i.test(t)) sold = t;
+        if (!rating && /^\d\.\d$/.test(t)) rating = t;
+        if (sold && rating) break;
       }
     }
     const text = card ? (card.innerText || '') : '';
