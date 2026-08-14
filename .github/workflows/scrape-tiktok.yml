@@ -7,14 +7,14 @@ on:
         description: "Search keyword"
         required: false
         default: "yoga mat"
-      category:
-        description: "Or collect by category name (free scraper)"
+      region:
+        description: "TikTok Shop region (US/TH/SG/ID/MY/PH/VN)"
         required: false
-        default: ""
+        default: "TH"
       limit:
         description: "Max products to collect"
         required: false
-        default: "30"
+        default: "20"
 
 permissions:
   contents: read
@@ -35,13 +35,19 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
-      - name: Diagnose what TikTok returns
+      - name: Diagnose what TikTok returns for the region
         run: |
           python - <<'PY'
-          import json
+          import urllib.parse
           from playwright.sync_api import sync_playwright
 
-          urls = ['https://shop.tiktok.com/us/c/835592', 'https://shop.tiktok.com/us/c/sports-and-outdoors', 'https://shop.tiktok.com/us/s?q=yoga%20mat&cat=835592', 'https://shop.tiktok.com/us/s?q=yoga%20mat&category=835592', 'https://www.tiktok.com/shop/c/835592?region=US']
+          region = "${{ github.event.inputs.region }}"
+          q = urllib.parse.quote("${{ github.event.inputs.keyword }}")
+          urls = [
+              f"https://shop.tiktok.com/{region.lower()}/s?q={q}",
+              f"https://www.tiktok.com/shop/{region.lower()}/search?q={q}",
+              f"https://shop.tiktok.com/{region.lower()}/c/0?q={q}",
+          ]
           UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
           with sync_playwright() as p:
@@ -50,44 +56,39 @@ jobs:
               page = ctx.new_page()
               for i, url in enumerate(urls):
                   try:
-                      page.goto(url, wait_until="domcontentloaded", timeout=40000)
+                      page.goto(url, wait_until="domcontentloaded", timeout=45000)
                       page.wait_for_timeout(5000)
                       print(f"--- URL[{i}] ---")
                       print("REQ:", url)
-                      print("TITLE:", page.title())
-                      print("FINAL:", page.url)
-                      pdp = page.evaluate("() => document.querySelectorAll('a[href*=\"/pdp/\"]').length")
-                      print('PDP:', pdp)
+                      print("TITLE:", (page.title() or '')[:120])
+                      print("FINAL:", page.url[:120])
+                      pdp = page.evaluate("() => document.querySelectorAll('a[href*="/pdp/"]').length")
+                      print("PDP:", pdp)
+                      body = page.evaluate("() => document.body ? document.body.innerText.slice(0,300) : ''")
+                      print("BODY:", body.replace(chr(10), ' | ')[:300])
                   except Exception as exc:
                       print(f"--- URL[{i}] ERROR:", str(exc)[:200])
               b.close()
           PY
-      - name: Direct scrape TikTok Shop
-        run: |
-          if [ -n "${{ github.event.inputs.category }}" ]; then
-            python main.py run --source scraper --category "${{ github.event.inputs.category }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
-          else
-            python main.py run --source scraper --keyword "${{ github.event.inputs.keyword }}" --limit "${{ github.event.inputs.limit }}" || echo "SCRAPER_FAILED=1"
-          fi
 
-      - name: Report result
+      - name: Try the project scraper for the region
         run: |
           python - <<'PY'
-          import sqlite3
-          from pathlib import Path
-          db_path = Path("data/tiktok_shop.db")
-          if not db_path.exists():
-              print("NO_DB: scraper did not write any data")
-              raise SystemExit(1)
-          con = sqlite3.connect(str(db_path))
-          n = con.execute("select count(*) from products").fetchone()[0]
-          rows = con.execute("select product_id, title, price, sold_count, rating, seller_name from products limit 8").fetchall()
-          con.close()
-          print("DB_PRODUCTS=" + str(n))
-          for r in rows:
-              print("  sample:", r)
-          if n == 0:
-              raise SystemExit(1)
+          import sys
+          sys.path.insert(0, ".")
+          from ttshop.scraper.tiktok_shop import TikTokShopScraper
+          region = "${{ github.event.inputs.region }}"
+          kw = "${{ github.event.inputs.keyword }}"
+          lim = int("${{ github.event.inputs.limit }}")
+          try:
+              s = TikTokShopScraper(region=region, headless=True, max_products_per_run=lim)
+              prods = s.scrape_search(kw, limit=lim)
+              print("COLLECTED:", len(prods))
+              for p in prods[:8]:
+                  print("  ", p.product_id, "|", str(p.title)[:50], "|", p.price, "|", str(p.seller_name)[:40])
+          except Exception as exc:
+              print("SCRAPER_FAILED:", type(exc).__name__, str(exc)[:300])
+              raise
           PY
 
       - uses: actions/upload-artifact@v4
@@ -96,6 +97,3 @@ jobs:
           name: scrape-result
           path: |
             data/tiktok_shop.db
-            reports/tiktok_shop_report.html
-            diagnose_0.png
-            diagnose_0.html
