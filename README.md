@@ -1,6 +1,6 @@
 # TikTok Shop 爆品监测与选品分析系统
 
-面向跨境电商（TikTok Shop 美区）的商品数据采集与选品决策项目。
+面向跨境电商（TikTok Shop 东南亚·泰国）的商品数据采集与选品决策项目。
 自动完成「采集 → 存储 → 毛利测算 → 选品评分 → 可视化看板」全流程，可作为简历项目或日常选品工具。
 
 ## 特性
@@ -16,7 +16,7 @@ ttshop/
   config.py          # 配置（毛利参数、评分权重、区域、API）
   db.py              # SQLite 数据层
   models.py          # 数据模型
-  demo_data.py       # 模拟美区商品数据生成器（离线演示）
+  demo_data.py       # 模拟泰国商品数据生成器（离线演示）
   sources/           # 可插拔数据源：base / demo / scraper / api
   scraper/           # Playwright 采集器（scraper 数据源的实现）
   analysis/          # 毛利测算 + 选品评分
@@ -42,7 +42,7 @@ python main.py report
 
 | 数据源 | 说明 | 适用场景 |
 | --- | --- | --- |
-| `demo` | 本地生成模拟美区商品数据，零依赖 | 演示全流程、CI、面试 Demo |
+| `demo` | 本地生成模拟泰国商品数据，零依赖 | 演示全流程、CI、面试 Demo |
 | `scraper` | Playwright 真实采集 TikTok Shop 搜索页 | 少量自采、验证反爬思路 |
 | `api` | 对接第三方数据平台开放接口 | 生产环境、稳定批量数据 |
 | `auto` | EchoTik API → FastMoss API → demo 自动故障切换（任一成功即停止） | 每日定时任务、无人值守 |
@@ -82,7 +82,7 @@ base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normali
 
 ## 免费真实采集：GitHub Actions 海外 IP（0 成本）
 
-- 痛点：TikTok Shop 反爬强、国内直连拿不到美区数据、第三方 API 免费额度有限。
+- 痛点：TikTok Shop 反爬强、国内直连拿不到东南亚数据、第三方 API 免费额度有限。
 - 方案：GitHub Actions 自带海外 IP 且免费，配合 Playwright 真实渲染 shop.tiktok.com 搜索页，
   从渲染后的 DOM 提取商品卡（标题 / 价格 / 销量 / 评分 / 店铺名），滚动加载更多。
 - 已实测：单次可抓 15~35 个真实商品；每日 08:30（北京时间）定时跑 yoga mat / massage gun / air fryer，

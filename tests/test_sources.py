@@ -141,7 +141,7 @@ class ApiSourceTest(unittest.TestCase):
         self.assertEqual(url, "https://openapi.fastmoss.com/product/v1/search")
         self.assertEqual(body["keywords"], "yoga mat")
         self.assertEqual(body["pagesize"], 10)
-        self.assertEqual(body["filter"]["region"], "US")
+        self.assertEqual(body["filter"]["region"], "TH")
 
     def test_normalize_item_fastmoss(self):
         source = ApiSource(settings=Settings(api_key="test"), provider="fastmoss")
@@ -292,7 +292,7 @@ class ApiSourceEchoTikAdvancedTest(unittest.TestCase):
         self.assertIn("category_id=600154", url)
         self.assertIn("page_num=1", url)
         self.assertIn("off_mark=0", url)
-        self.assertIn("region=US", url)
+        self.assertIn("region=TH", url)
         self.assertEqual(result.products[0].product_id, "C1")
         # category name resolved from tree
         self.assertIn("Textiles", result.products[0].category)

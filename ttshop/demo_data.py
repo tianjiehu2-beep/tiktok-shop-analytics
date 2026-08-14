@@ -1,4 +1,4 @@
-"""美区 TikTok Shop 模拟数据生成器（本地演示完整数据管道，无需联网）。"""
+"""泰国（东南亚）TikTok Shop 模拟数据生成器（本地演示完整数据管道，无需联网）。"""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ SELLER_PREFIX = ["TikTop", "Bloom", "Nova", "Luxe", "Urban", "Sunny", "Zest", "C
 SELLER_SUFFIX = ["Deals", "Store", "Picks", "Supply", "Market", "Boutique", "Hub", "Co", "Goods", "Studio"]
 
 # 头部店铺：demo 中少数店铺拥有多商品并持续上新，用于店铺监控演示
-STAR_SELLER_IDS = [f"US88{i:06d}" for i in range(8)]
+STAR_SELLER_IDS = [f"TH88{i:06d}" for i in range(8)]
 STAR_SELLER_NAMES = [
     "StarShop Deals", "TrendNest Store", "MegaPick Supply", "ViralDeal Market",
     "TopSell Boutique", "HotBox Goods", "RapidShip Hub", "PrimeFind Co",
@@ -106,7 +106,7 @@ def generate_products(count: int = 200, category: str | None = None, seed: int =
             seller_id = STAR_SELLER_IDS[star_idx]
         else:
             seller = f"{_pick(rng, SELLER_PREFIX)} {_pick(rng, SELLER_SUFFIX)}"
-            seller_id = f"US{rng.randrange(10 ** 8):08d}"
+            seller_id = f"TH{rng.randrange(10 ** 8):08d}"
         product = Product(
             product_id=f"TT{rng.randrange(10**11):011d}",
             title=f"{_pick(rng, ADJECTIVES)} {_pick(rng, NOUNS[cat])} {_pick(rng, MODIFIERS)}",

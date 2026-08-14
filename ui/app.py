@@ -1,4 +1,4 @@
-"""TikTok Shop 美区数据分析 - 总览看板（入口页）。"""
+"""TikTok Shop 东南亚数据分析 - 总览看板（入口页）。"""
 import sys
 from pathlib import Path
 
@@ -15,7 +15,7 @@ st.set_page_config(page_title="TikTok Shop 数据分析", page_icon="📊", layo
 setup_env()
 require_password()
 
-st.title("📊 TikTok Shop 美区数据分析")
+st.title("📊 TikTok Shop 东南亚数据分析")
 st.caption("类目选品 / 商品追踪 / 店铺监控 · 数据来自 EchoTik OpenAPI")
 
 db = get_db()

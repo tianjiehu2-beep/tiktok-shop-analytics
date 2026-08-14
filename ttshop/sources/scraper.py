@@ -8,7 +8,7 @@ from .base import DataSource, SourceResult
 class ScraperSource(DataSource):
     """封装 ttshop.scraper.tiktok_shop.TikTokShopScraper。"""
 
-    def __init__(self, region: str = "US", headless: bool = True, slow_mo_ms: int = 800,
+    def __init__(self, region: str = "TH", headless: bool = True, slow_mo_ms: int = 800,
                  max_products_per_run: int = 100, proxy: str | None = None):
         self.region = region
         self.headless = headless

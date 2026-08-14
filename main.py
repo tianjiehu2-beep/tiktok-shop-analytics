@@ -693,6 +693,12 @@ def main(argv: list[str] | None = None) -> int:
                 pass
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
     settings = Settings()
+    _region = os.environ.get("TTSHOP_REGION")
+    if _region:
+        settings.region = _region
+    _currency = os.environ.get("TTSHOP_CURRENCY")
+    if _currency:
+        settings.currency = _currency
     return args.func(args, settings)
 
 

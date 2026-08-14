@@ -114,7 +114,7 @@ def _parse_sold(value) -> int:
 
 def _region_path(region: str) -> str:
     """US -> us??? URL ???"""
-    return (region or "US").strip().lower()[:2]
+    return (region or "TH").strip().lower()[:2]
 
 
 def _extract_seller(text: str, title: str) -> str:
@@ -140,7 +140,7 @@ def _extract_seller(text: str, title: str) -> str:
 class TikTokShopScraper:
     """?? Playwright ? TikTok Shop ??????"""
 
-    def __init__(self, region: str = "US", headless: bool = True, slow_mo_ms: int = 800,
+    def __init__(self, region: str = "TH", headless: bool = True, slow_mo_ms: int = 800,
                  max_products_per_run: int = 100, proxy: str | None = None):
         self.region = region
         self.headless = headless

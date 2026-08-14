@@ -500,6 +500,7 @@ class Database:
                 "total_sold": 0, "total_gmv": 0.0, "price_sum": 0.0,
                 "first_seen_at": p.get("first_seen_at") or utc_now(),
                 "last_seen_at": p.get("last_seen_at") or utc_now(),
+                "region": p.get("region") or "TH",
             })
             a["rating_sum"] += float(p.get("rating") or 0)
             a["rating_n"] += 1
@@ -525,7 +526,7 @@ class Database:
                         product_cnt=excluded.product_cnt, total_sold=excluded.total_sold,
                         total_gmv=excluded.total_gmv, avg_price=excluded.avg_price,
                         first_seen_at=excluded.first_seen_at, last_seen_at=excluded.last_seen_at""",
-                    (sid, a["seller_name"], "US",
+                    (sid, a["seller_name"], a.get("region") or "TH",
                      round(a["rating_sum"] / max(1, a["rating_n"]), 2),
                      a["product_cnt"], a["total_sold"], round(a["total_gmv"], 2),
                      round(a["price_sum"] / max(1, a["product_cnt"]), 2),

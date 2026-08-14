@@ -65,6 +65,12 @@ def require_password() -> None:
 def get_settings() -> Settings:
     """Settings：数据库/报告路径固定指向仓库根目录，避免受启动目录影响。"""
     s = Settings()
+    _region = os.environ.get("TTSHOP_REGION")
+    if _region:
+        s.region = _region
+    _currency = os.environ.get("TTSHOP_CURRENCY")
+    if _currency:
+        s.currency = _currency
     if not Path(s.db_path).is_absolute():
         s.db_path = str(ROOT / s.db_path)
     if not Path(s.report_dir).is_absolute():
