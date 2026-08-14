@@ -60,7 +60,9 @@ jobs:
           fi
 
       - name: 复制为 Pages 首页
-        run: cp reports/tiktok_shop_report.html reports/index.html
+        run: |
+          cp reports/tiktok_shop_report.html reports/index.html
+          if [ -f data/tiktok_shop.db ]; then cp data/tiktok_shop.db reports/tiktok_shop.db; fi
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

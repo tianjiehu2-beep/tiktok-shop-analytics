@@ -22,6 +22,30 @@ st.caption("云端免费空间的文件会在重启后重置：用「导出快�
 db = get_db()
 settings = get_settings()
 
+
+st.subheader("① 每日免费采集数据（GitHub Actions 海外 IP）")
+st.caption("每天 08:30 自动用 Playwright 采集 yoga mat / massage gun / air fryer 三个关键词，结果随报告部署到本网站，点下面按钮一键加载。")
+if st.button("一键加载最新每日采集数据"):
+    import urllib.request
+    url = "https://tianjiehu2-beep.github.io/tiktok-shop-analytics/tiktok_shop.db"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            data = resp.read()
+        if len(data) < 1024:
+            st.warning("下载的数据太小，可能还没有每日采集结果。")
+        else:
+            db_path = Path(settings.db_path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            for suffix in ("", "-wal", "-shm"):
+                fp = Path(str(db_path) + suffix)
+                if fp.exists():
+                    fp.unlink()
+            db_path.write_bytes(data)
+            reset_db_cache()
+            st.success(f"已加载 {len(data)/1024:.0f} KB 数据，可到总览页查看，或点上方「重新生成分析报告」。")
+    except Exception as exc:
+        st.error(f"加载失败：{exc}")
+
 st.subheader("① 导出数据快照")
 if st.button("打包当前数据库"):
     try:
