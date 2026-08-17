@@ -46,6 +46,68 @@ class ApiSourceTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             source.fetch(keyword="yoga mat")
 
+    def test_multi_key_parsing(self):
+        source = ApiSource(settings=Settings(), api_key="k1,k2|k3\nk4 ;k5")
+        self.assertEqual(source._api_keys, ["k1", "k2", "k3", "k4", "k5"])
+        self.assertEqual(source.api_key, "k1")
+        self.assertEqual(source._current_key(), "k1")
+        self.assertTrue(source._rotate_key())
+        self.assertEqual(source._current_key(), "k2")
+
+    def test_env_multi_keys_env_var(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"TTSHOP_API_KEYS": "env1, env2"}):
+            source = ApiSource(settings=Settings())
+        self.assertEqual(source._api_keys, ["env1", "env2"])
+
+    def test_rotation_on_quota_http_error(self):
+        import io
+        from unittest import mock
+        from urllib.error import HTTPError
+
+        source = ApiSource(settings=Settings(api_key="k1,k2"), provider="echotik")
+        responses = [
+            HTTPError("https://open.echotik.live", 403, "Forbidden", {}, None),
+            io.BytesIO(b'{"data": {"list": [{"product_id": "P1", '
+                       b'"product_name": "Yoga Mat", "min_price": 12.99, '
+                       b'"total_sale_cnt": 100}]}}'),
+        ]
+        with mock.patch("ttshop.sources.api.urlopen", side_effect=responses):
+            result = source.fetch(keyword="yoga mat", limit=10)
+        self.assertEqual(len(result.products), 1)
+        self.assertEqual(source._key_idx, 1)
+
+    def test_rotation_on_quota_business_error(self):
+        import io
+        from unittest import mock
+
+        source = ApiSource(settings=Settings(api_key="k1,k2"), provider="echotik")
+        responses = [
+            io.BytesIO(b'{"code": 500, "message": "free trial quota exceeded"}'),
+            io.BytesIO(b'{"data": {"list": [{"product_id": "P1", '
+                       b'"product_name": "Yoga Mat", "min_price": 12.99, '
+                       b'"total_sale_cnt": 100}]}}'),
+        ]
+        with mock.patch("ttshop.sources.api.urlopen", side_effect=responses):
+            result = source.fetch(keyword="yoga mat", limit=10)
+        self.assertEqual(len(result.products), 1)
+        self.assertEqual(source._key_idx, 1)
+
+    def test_all_keys_exhausted_raises(self):
+        from unittest import mock
+        from urllib.error import HTTPError
+
+        source = ApiSource(settings=Settings(api_key="k1,k2"), provider="echotik")
+        responses = [
+            HTTPError("https://open.echotik.live", 403, "Forbidden", {}, None),
+            HTTPError("https://open.echotik.live", 403, "Forbidden", {}, None),
+        ]
+        with mock.patch("ttshop.sources.api.urlopen", side_effect=responses):
+            with self.assertRaises(RuntimeError):
+                source.fetch(keyword="yoga mat", limit=10)
+
     def test_normalize_item(self):
         source = ApiSource(settings=Settings(api_key="test"))
         item = {

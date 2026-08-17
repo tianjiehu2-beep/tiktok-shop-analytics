@@ -29,6 +29,7 @@ def setup_env() -> None:
         secrets = {}
     for env_key, secret_key in (
         ("TTSHOP_API_KEY", "TTSHOP_API_KEY"),
+        ("TTSHOP_API_KEYS", "TTSHOP_API_KEYS"),
         ("TTSHOP_API_PROVIDER", "TTSHOP_API_PROVIDER"),
     ):
         if os.environ.get(env_key):

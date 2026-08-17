@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -156,6 +157,22 @@ def _as_list(payload: dict, items_path: str) -> list:
     return items
 
 
+class _QuotaError(Exception):
+    """Internal signal: current API key has exhausted its quota."""
+
+
+def _split_keys(raw: str) -> list[str]:
+    """Split a key string into distinct keys (supports , | ; newline)."""
+    seen: set[str] = set()
+    keys: list[str] = []
+    for part in re.split(r"[,|;\n]+", raw or ""):
+        key = part.strip()
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
+
+
 class ApiSource(DataSource):
     """Product data source backed by a third-party data API."""
 
@@ -173,7 +190,12 @@ class ApiSource(DataSource):
                          or os.environ.get("TTSHOP_API_PROVIDER") or "fastmoss").lower()
         self.api_base = (api_base or settings.api_base
                          or os.environ.get("TTSHOP_API_BASE") or "").rstrip("/")
-        self.api_key = api_key or settings.api_key or os.environ.get("TTSHOP_API_KEY") or ""
+        raw_key = (api_key or settings.api_key
+                   or os.environ.get("TTSHOP_API_KEYS")
+                   or os.environ.get("TTSHOP_API_KEY") or "")
+        self._api_keys = _split_keys(raw_key)
+        self.api_key = self._api_keys[0] if self._api_keys else ""
+        self._key_idx = 0
         self.region = region or settings.region
         self.timeout = timeout or settings.api_timeout
         self.category_id = (category_id or "").strip()
@@ -719,7 +741,7 @@ class ApiSource(DataSource):
             if category:
                 params["category"] = category
         if not config.auth_header:
-            params["api_key"] = self.api_key
+            params["api_key"] = self._current_key()
         return params
 
     def _build_url(self, config: ProviderConfig, base: str, keyword: str,
@@ -742,37 +764,96 @@ class ApiSource(DataSource):
             return base + config.search_path, body
         return self._build_url(config, base, keyword, limit, category), None
 
+    # --------------------------------------------------------------- key ring
+    def _current_key(self) -> str:
+        """Active API key（额度用尽后自动切到下一个）。"""
+        return self._api_keys[min(self._key_idx, len(self._api_keys) - 1)]
+
+    def _rotate_key(self) -> bool:
+        """切到下一个 key；全部用完返回 False。"""
+        if self._key_idx + 1 >= len(self._api_keys):
+            return False
+        self._key_idx += 1
+        logger.warning("API key[%d] 不可用，切换到第 %d/%d 个 key",
+                       self._key_idx, self._key_idx + 1, len(self._api_keys))
+        return True
+
+    @staticmethod
+    def _is_quota_http(code: int) -> bool:
+        """HTTP 状态码：额度用尽 / 凭据失效时常见的错误码。"""
+        return code in (401, 402, 403, 429)
+
+    @staticmethod
+    def _is_quota_payload(payload: dict) -> bool:
+        """业务层错误：非成功 code + 额度相关提示，视为该 key 额度用尽。"""
+        code = payload.get("code") or payload.get("status") or payload.get("error_code")
+        if code in (None, 0, 1, 200, "0", "1", "200"):
+            return False
+        if str(code) in ("401", "402", "403", "429"):
+            return True
+        message = str(payload.get("message") or payload.get("msg")
+                      or payload.get("error") or payload.get("error_message") or "")
+        lower = message.lower()
+        return any(kw in lower for kw in (
+            "quota", "limit", "balance", "insufficient", "exhaust", "trial",
+            "额度", "余额", "次数", "不足", "用完", "耗尽", "套餐", "充值",
+        ))
+
     def _request_json(self, url: str, config: ProviderConfig,
                       body: dict | None = None, retries: int = 2) -> dict:
         headers = {"Accept": "application/json", "User-Agent": "ttshop-analytics/0.1"}
         if config.auth_header:
-            headers[config.auth_header] = config.auth_prefix + self.api_key
+            headers[config.auth_header] = config.auth_prefix + self._current_key()
         data = None
         if body is not None:
             headers["Content-Type"] = "application/json"
             data = json.dumps(body).encode("utf-8")
-        request = Request(url, data=data, headers=headers)
         last_error: Exception | None = None
-        for attempt in range(retries + 1):
+        attempt = 0
+        while True:
+            request = Request(url, data=data, headers=headers)
             try:
                 with urlopen(request, timeout=self.timeout) as resp:
-                    return json.loads(resp.read().decode("utf-8", errors="replace"))
+                    payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+                if self._is_quota_payload(payload):
+                    raise _QuotaError("quota exhausted")
+                return payload
+            except _QuotaError as exc:
+                last_error = exc
+                if self._rotate_key():
+                    headers[config.auth_header] = config.auth_prefix + self._current_key()
+                    continue
+                raise RuntimeError(
+                    "所有 API key 均不可用（额度用尽或凭据失效）："
+                    "请补充新账号 key（TTSHOP_API_KEYS 逗号分隔）或改用 demo 源"
+                ) from exc
             except HTTPError as exc:
+                if self._is_quota_http(exc.code):
+                    last_error = exc
+                    if self._rotate_key():
+                        headers[config.auth_header] = config.auth_prefix + self._current_key()
+                        continue
+                    raise RuntimeError(
+                        f"所有 API key 均不可用（HTTP {exc.code}，额度用尽或凭据失效）："
+                        "请补充新账号 key（TTSHOP_API_KEYS 逗号分隔）或改用 demo 源"
+                    ) from exc
                 last_error = exc
                 if attempt < retries and exc.code >= 500:
                     wait = 2 ** attempt
-                    logger.warning("API HTTP %s（第 %d 次），%ss 后重试: %s",
+                    logger.warning("API HTTP %s（第 %d 次），%ds 后重试: %s",
                                    exc.code, attempt + 1, wait, url)
                     time.sleep(wait)
+                    attempt += 1
                     continue
                 raise RuntimeError(f"API request failed HTTP {exc.code}: {exc.reason}") from exc
             except URLError as exc:
                 last_error = exc
                 if attempt < retries:
                     wait = 2 ** attempt
-                    logger.warning("API 网络错误（第 %d 次），%ss 后重试: %s",
+                    logger.warning("API 网络错误（第 %d 次），%ds 后重试: %s",
                                    attempt + 1, wait, url)
                     time.sleep(wait)
+                    attempt += 1
                     continue
                 raise RuntimeError(f"API network error: {exc.reason}") from exc
             except json.JSONDecodeError as exc:

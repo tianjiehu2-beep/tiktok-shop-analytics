@@ -508,7 +508,7 @@ def _add_source_args(parser) -> None:
     parser.add_argument("--proxy", default=None, help="代理地址（scraper 源），如 socks5://127.0.0.1:40000")
     parser.add_argument("--provider", default=None, help="第三方数据平台（api 源），如 kalodata/echotik/fastmoss")
     parser.add_argument("--api-base", default=None, help="第三方 API 地址（api 源），也可用环境变量 TTSHOP_API_BASE")
-    parser.add_argument("--api-key", default=None, help="第三方 API Key（api 源），也可用环境变量 TTSHOP_API_KEY")
+    parser.add_argument("--api-key", default=None, help="第三方 API Key（api 源），支持逗号分隔多个 key 自动轮换；也可用环境变量 TTSHOP_API_KEY / TTSHOP_API_KEYS")
 
 
 def main(argv: list[str] | None = None) -> int:

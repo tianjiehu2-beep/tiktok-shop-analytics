@@ -72,9 +72,13 @@ python main.py run --source api --keyword "yoga mat" --provider echotik
    set TTSHOP_API_KEY=Base64结果   # 当前窗口立即生效
    python main.py run --source api --keyword "yoga mat" --provider echotik
    ```
-4. 请求：`GET https://open.echotik.live/api/v3/echotik/search/items?sk=关键词&type=2&size=30`，
+4. 免费额度 = 每个账号一次性 100 次请求（不是每天），用完后注册新账号续量：
+   多个账号的 key 用逗号分隔填入 `TTSHOP_API_KEYS`（或 `--api-key "key1,key2"`），
+   代码会自动轮换：当前 key 额度用尽自动切下一个，全部用完才报错；
+   GitHub secret `TTSHOP_API_KEY` 直接填逗号分隔的多 key 即可，本地 `data/api_key.txt` 每行一个 key。
+5. 请求：`GET https://open.echotik.live/api/v3/echotik/search/items?sk=关键词&type=2&size=30`，
    认证头 `Authorization: Basic <Base64>`，商品列表取 `data.list`（字段见 `normalize_item`）。
-5. 按类目采集时用 `--category-id`（先 `python main.py categories --search <词>` 拿类目 ID），
+6. 按类目采集时用 `--category-id`（先 `python main.py categories --search <词>` 拿类目 ID），
    商品列表接口 `GET /api/v3/echotik/product/list` 每页最多 10 条，用 `--pages` 翻页。
 各平台响应字段不同，在 `ttshop/sources/api.py` 的 `PROVIDERS` 中按官方文档调整
 base_url / search_path / 鉴权方式 / items_path，字段归一化在 `normalize_item` 中完成。
