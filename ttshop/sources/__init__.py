@@ -49,10 +49,14 @@ def get_source(name: str | None, settings: Settings | None = None, **kwargs) -> 
                     api_provider, api_key = "echotik", _read_secret(data_dir / "api_key.txt")
                 elif _read_secret(data_dir / "fastmoss_key.txt"):
                     api_provider, api_key = "fastmoss", _read_secret(data_dir / "fastmoss_key.txt")
+                elif _read_secret(data_dir / "socialcrawl_key.txt"):
+                    api_provider, api_key = "socialcrawl", _read_secret(data_dir / "socialcrawl_key.txt")
             elif str(api_provider).lower() == "echotik":
                 api_key = _read_secret(data_dir / "api_key.txt")
             elif str(api_provider).lower() == "fastmoss":
                 api_key = os.environ.get("FAST_MOSS_API_KEY") or _read_secret(data_dir / "fastmoss_key.txt")
+            elif str(api_provider).lower() == "socialcrawl":
+                api_key = os.environ.get("TTSHOP_SOCIALCRAWL_KEY") or _read_secret(data_dir / "socialcrawl_key.txt")
         return ApiSource(
             settings=settings,
             provider=api_provider,
@@ -95,6 +99,8 @@ def get_source(name: str | None, settings: Settings | None = None, **kwargs) -> 
                     or _read_secret(data_dir / "api_key.txt"))
         fm_key = (os.environ.get("FAST_MOSS_API_KEY")
                   or _read_secret(data_dir / "fastmoss_key.txt"))
+        sc_key = (os.environ.get("TTSHOP_SOCIALCRAWL_KEY")
+                  or _read_secret(data_dir / "socialcrawl_key.txt"))
         sources: list[tuple[str, DataSource]] = []
         if echo_key:
             sources.append(("api", ApiSource(settings=settings, provider="echotik",
@@ -102,6 +108,9 @@ def get_source(name: str | None, settings: Settings | None = None, **kwargs) -> 
         if fm_key:
             sources.append(("fastmoss", ApiSource(settings=settings, provider="fastmoss",
                                                   api_key=fm_key, **api_kwargs)))
+        if sc_key:
+            sources.append(("socialcrawl", ApiSource(settings=settings, provider="socialcrawl",
+                                                     api_key=sc_key, **api_kwargs)))
         sources.append(("demo", DemoSource(seed=kwargs.pop("seed", None),
                                            product_count=kwargs.pop("product_count", 200))))
         return FailoverSource(sources)

@@ -119,6 +119,15 @@ PROVIDERS: dict[str, ProviderConfig] = {
         auth_prefix="Basic ",   # api_key = base64(username:password)
         method="GET",
     ),
+    "socialcrawl": ProviderConfig(
+        name="socialcrawl",
+        base_url="https://www.socialcrawl.dev",
+        search_path="/v1/tiktokshop/search",
+        items_path="data.items",
+        auth_header="x-api-key",
+        auth_prefix="",
+        method="GET",
+    ),
 }
 
 
@@ -734,6 +743,8 @@ class ApiSource(DataSource):
                 "size": min(limit or 10, 30),    # search/items caps at 30
                 "sortType": 4,                   # total_sale_cnt desc
             }
+        elif config.name == "socialcrawl":
+            params = {"query": keyword, "region": self.region}
         else:
             params = {"keyword": keyword, "region": self.region}
             if limit:
@@ -786,6 +797,13 @@ class ApiSource(DataSource):
     @staticmethod
     def _is_quota_payload(payload: dict) -> bool:
         """业务层错误：非成功 code + 额度相关提示，视为该 key 额度用尽。"""
+        if payload.get("success") is False:
+            message = str(payload.get("error") or payload.get("message")
+                          or payload.get("error_message") or "")
+            return any(kw in message.lower() for kw in (
+                "quota", "credit", "limit", "balance", "insufficient", "exhaust",
+                "额度", "余额", "积分", "不足", "用完", "耗尽", "充值",
+            ))
         code = payload.get("code") or payload.get("status") or payload.get("error_code")
         if code in (None, 0, 1, 200, "0", "1", "200"):
             return False
@@ -861,9 +879,27 @@ class ApiSource(DataSource):
         raise RuntimeError(f"API request failed: {last_error}") from last_error
 
     # ----------------------------------------------------------- normalization
+    def _flatten_socialcrawl(self, item: dict) -> dict:
+        """Flatten SocialCrawl nested records into generic provider fields."""
+        price_info = item.get("product_price_info") if isinstance(item.get("product_price_info"), dict) else {}
+        rate_info = item.get("rate_info") if isinstance(item.get("rate_info"), dict) else {}
+        sold_info = item.get("sold_info") if isinstance(item.get("sold_info"), dict) else {}
+        seller_info = item.get("seller_info") if isinstance(item.get("seller_info"), dict) else {}
+        flat = dict(item)
+        flat["price"] = price_info.get("sale_price_decimal")
+        flat["original_price"] = price_info.get("origin_price_decimal")
+        flat["rating"] = rate_info.get("score")
+        flat["review_count"] = rate_info.get("review_count")
+        flat["sold_count"] = sold_info.get("sold_count")
+        flat["seller_name"] = seller_info.get("shop_name")
+        flat["seller_id"] = seller_info.get("seller_id")
+        return flat
+
     def normalize_item(self, item: dict, keyword: str,
                        category: str | None = None) -> Product | None:
         """Normalize a provider product record into the internal Product model."""
+        if self.provider == "socialcrawl":
+            item = self._flatten_socialcrawl(item)
         try:
             title = str(first_key(item, ["title", "name", "product_title", "productTitle", "product_name"]) or "").strip()
             price = parse_price(first_key(

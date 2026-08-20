@@ -30,7 +30,9 @@ jobs:
       - name: 运行单元测试
         run: python -m unittest discover -s tests
 
-      - name: 每日真实采集（EchoTik 泰国 API，失败自动降级 FastMoss / demo）
+      - name: 每日真实采集（EchoTik 泰国 API，失败自动降级 FastMoss / SocialCrawl / demo）
+        env:
+          TTSHOP_SOCIALCRAWL_KEY: ${{ secrets.TTSHOP_SOCIALCRAWL_KEY }}
         run: |
           pip install -r requirements.txt
           python main.py run --source auto --category-id 603084 --pages 5 --sort sales7d --enrich --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "category collection failed"
