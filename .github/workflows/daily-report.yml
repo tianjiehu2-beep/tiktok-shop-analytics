@@ -39,9 +39,11 @@ jobs:
           python main.py run --source auto --keyword "yoga mat,massage gun,air fryer" --limit 30 --with-influencers --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "keyword collection failed"
           python main.py influencers --sort followers --pages 2 --limit 20 --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "influencers collection failed"
           python main.py keywords --tab all --limit 15 --api-key "${{ secrets.TTSHOP_API_KEY }}" || echo "keywords collection failed"
+          python tools/collect_socialcrawl.py --region TH --limit 30 || echo "socialcrawl collection skipped/failed"
 
       - name: 生成数据与看板
         run: |
+          python tools/build_sea_report.py || echo "sea report build skipped"
           python - <<'PY'
           import os, sqlite3
           if os.path.exists("data/tiktok_shop.db"):

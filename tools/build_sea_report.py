@@ -336,6 +336,168 @@ def build_docx(products: list[dict], summaries: list[dict], out: Path) -> None:
     print(f"docx saved: {out}")
 
 
+
+def build_html(products: list[dict], summaries: list[dict], out: Path) -> None:
+    """Self-contained dashboard HTML (no external CDN), rendered from DB data."""
+    import json
+
+    shop_freq: dict = {}
+    for p in products:
+        shop_freq[p["seller_id"]] = shop_freq.get(p["seller_id"], 0) + 1
+    max_freq = max(shop_freq.values()) if shop_freq else 1
+    scored = []
+    for p in products:
+        if 100 <= (p["sold_count"] or 0) <= 300000:
+            scored.append((blue_ocean_score(p, shop_freq, max_freq), p))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = sorted(products, key=lambda p: p["sold_count"] or 0, reverse=True)[:10]
+
+    insights = {
+        "美妆个护-护肤": "精华、面霜类目普遍采用「买一送一」「组合装」打法，高销量单品常以低价引流+高折后价组合，适合达人带货矩阵。",
+        "美妆个护-彩妆": "上新快、内容属性强，与美妆博主强绑定；定价集中在฿100-300 中低价带，复购率高。",
+        "服饰-女装": "以连衣裙、套装为主，高销量款多为宽松版型、多色可选，试穿对比类视频转化明显。",
+        "服饰-男装": "以基础款 T 恤、衬衫为主，主打「免烫」「百搭」，单价低、走量属性强。",
+        "3C数码-手机配件": "标准化程度高、客单价低、内容展示直观，爆款依赖外观设计与联名。",
+        "家居生活-家居装饰": "客单价相对较高，需展示真实使用场景；收纳、氛围灯等小件适合短视频种草。",
+        "食品饮料-零食": "复购率高、冲动消费强，直播试吃与吃播内容是核心转化手段。",
+        "健康保健-保健品": "客单价与毛利高，需 FDA/注册资质背书；「维C」「谷胱甘肽」等美白保健概念热度高。",
+        "宠物用品": "养宠人群快速增长，猫砂、宠物食品消耗大且复购稳定，适合建立店铺复购。",
+        "运动户外-健身器材": "瑜伽垫等居家健身器材需求旺盛，头部单品累计销量超 17 万件；可捆绑配件提高客单价。",
+        "时尚饰品-珠宝": "客单价低、款式多，适合直播展示与「组合」「盲盒」玩法；注意低价引流款混杂。",
+        "母婴用品": "决策谨慎、复购强，家长看重安全资质与口碑；纸尿裤、护理等高消耗品适合订阅式复购。",
+    }
+
+    payload = {
+        "date": utc_today(),
+        "count": len(products),
+        "total_sold": sum(p["sold_count"] or 0 for p in products),
+        "total_gmv": sum(p["gmv"] for p in products),
+        "categories": summaries,
+        "top": [
+            {"rank": i, "title": str(p["title"])[:70], "category": p["category"],
+             "price": round(p["price"] or 0, 2), "sold": p["sold_count"] or 0,
+             "rating": p["rating"] or 0, "shop": str(p["seller_name"])[:30]}
+            for i, p in enumerate(top, 1)
+        ],
+        "blue": [
+            {"rank": i, "score": round(sc, 3), "title": str(p["title"])[:70],
+             "category": p["category"], "price": round(p["price"] or 0, 2),
+             "sold": p["sold_count"] or 0, "rating": p["rating"] or 0,
+             "shop": str(p["seller_name"])[:30]}
+            for i, (sc, p) in enumerate(scored[:10], 1)
+        ],
+        "insights": [{"category": s["category"],
+                      "text": insights.get(s["category"], "")} for s in summaries],
+    }
+
+    html = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok Shop 东南亚热门类目选品数据分析</title>
+<style>
+  :root{--brand:#1f6feb;--bg:#f5f7fb;--card:#fff;--ink:#1f2328;--muted:#6b7280;--line:#e5e7eb;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 64px;}
+  header h1{font-size:26px;letter-spacing:.5px;}
+  .meta{color:var(--muted);font-size:13px;margin-top:6px;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .kpi .num{font-size:24px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;}
+  .kpi .lbl{font-size:12px;color:var(--muted);margin-top:2px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin:18px 0;}
+  h2{font-size:18px;margin-bottom:14px;}
+  .bar-row{display:grid;grid-template-columns:150px 1fr 92px;gap:10px;align-items:center;margin:9px 0;font-size:13px;}
+  .bar-track{background:#eef2f7;border-radius:6px;height:18px;overflow:hidden;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,#1f6feb,#54aeff);border-radius:6px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;}
+  th{background:#f8fafc;font-weight:600;white-space:nowrap;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .tag{display:inline-block;background:#e8f0fe;color:#1f6feb;border-radius:99px;padding:2px 10px;font-size:12px;white-space:nowrap;}
+  .insight{margin:10px 0;padding:12px 14px;background:#f8fafc;border-left:3px solid var(--brand);border-radius:6px;font-size:13.5px;}
+  .insight b{color:var(--brand);}
+  footer{color:var(--muted);font-size:12px;margin-top:28px;border-top:1px solid var(--line);padding-top:14px;}
+  @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr);}.bar-row{grid-template-columns:110px 1fr 70px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TikTok Shop 东南亚热门类目选品数据分析</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div class="kpis" id="kpis"></div>
+  <div class="card"><h2>类目销量总览</h2><div id="cats"></div></div>
+  <div class="card"><h2>热销商品 Top 10</h2><div id="top"></div></div>
+  <div class="card"><h2>蓝海机会 Top 10</h2><div id="blue"></div></div>
+  <div class="card"><h2>类目洞察</h2><div id="insights"></div></div>
+  <footer>
+    数据来源：SocialCrawl API（TikTok Shop 泰国站实时搜索，每类目 Top30）· 币种：泰铢（THB）·
+    预估 GMV = 累计销量 × 现价 · 本页面由 tools/build_sea_report.py 自动生成，仅用于选品方向参考。
+  </footer>
+</div>
+<script>
+const DATA = __DATA__;
+const fmt = (n) => n >= 1e8 ? (n/1e8).toFixed(2)+' 亿' : n >= 1e4 ? (n/1e4).toFixed(1)+' 万' : n.toLocaleString();
+document.getElementById('meta').textContent = '市场：泰国站（TH） ｜ 数据日期：' + DATA.date +
+  ' ｜ 数据源：SocialCrawl API 真实采集 ｜ 样本：' + DATA.count + ' 款商品';
+
+const kpiBox = [
+  [DATA.count, '采集商品（款）'],
+  [fmt(DATA.total_sold), '样本累计销量（件）'],
+  ['฿ ' + fmt(Math.round(DATA.total_gmv)), '预估 GMV（泰铢）'],
+  [DATA.categories.length, '覆盖类目'],
+];
+document.getElementById('kpis').innerHTML = kpiBox.map(([num, lbl]) =>
+  '<div class="kpi"><div class="num">' + num + '</div><div class="lbl">' + lbl + '</div></div>').join('');
+
+const maxSold = Math.max(...DATA.categories.map(c => c.total_sold), 1);
+document.getElementById('cats').innerHTML = DATA.categories.map(c =>
+  '<div class="bar-row"><div>' + c.category + '</div>' +
+  '<div class="bar-track"><div class="bar-fill" style="width:' + (c.total_sold / maxSold * 100).toFixed(1) + '%"></div></div>' +
+  '<div class="num" style="text-align:right">' + fmt(c.total_sold) + '</div></div>').join('');
+
+function tableHtml(rows, cols) {
+  return '<table><thead><tr>' + cols.map(c => '<th class="' + (c.num ? 'num' : '') + '">' + c.label + '</th>').join('') +
+    '</tr></thead><tbody>' + rows.map(r =>
+    '<tr>' + cols.map(c => '<td class="' + (c.num ? 'num' : '') + '">' + r[c.key] + '</td>').join('') +
+    '</tr>').join('') + '</tbody></table>';
+}
+
+document.getElementById('top').innerHTML = tableHtml(
+  DATA.top.map(r => ({
+    rank: r.rank, title: r.title, category: '<span class="tag">' + r.category + '</span>',
+    price: '฿' + r.price.toLocaleString(), sold: fmt(r.sold), rating: r.rating.toFixed(1), shop: r.shop
+  })),
+  [{key:'rank',label:'#'},{key:'title',label:'商品'},{key:'category',label:'类目'},
+   {key:'price',label:'售价',num:true},{key:'sold',label:'累计销量',num:true},
+   {key:'rating',label:'评分',num:true},{key:'shop',label:'店铺'}]
+);
+
+document.getElementById('blue').innerHTML = tableHtml(
+  DATA.blue.map(r => ({
+    rank: r.rank, score: r.score.toFixed(3), title: r.title,
+    category: '<span class="tag">' + r.category + '</span>',
+    price: '฿' + r.price.toLocaleString(), sold: fmt(r.sold), rating: r.rating.toFixed(1), shop: r.shop
+  })),
+  [{key:'rank',label:'#'},{key:'score',label:'蓝海分',num:true},{key:'title',label:'商品'},
+   {key:'category',label:'类目'},{key:'price',label:'售价',num:true},{key:'sold',label:'销量',num:true},
+   {key:'rating',label:'评分',num:true},{key:'shop',label:'店铺'}]
+);
+
+document.getElementById('insights').innerHTML = DATA.insights.map(i =>
+  '<div class="insight"><b>' + i.category + '</b>：' + i.text + '</div>').join('');
+</script>
+</body>
+</html>"""
+
+    html = html.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
+    out.write_text(html, encoding="utf-8")
+    print(f"html saved: {out}")
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/tiktok_shop.db")
@@ -352,6 +514,7 @@ def main() -> int:
     day = utc_today()
     build_xlsx(products, summaries, outdir / f"东南亚热门类目数据分析_{day}.xlsx")
     build_docx(products, summaries, outdir / f"TikTokShop东南亚热门类目选品分析报告_{day}.docx")
+    build_html(products, summaries, outdir / "sea_report.html")
     return 0
 
 
